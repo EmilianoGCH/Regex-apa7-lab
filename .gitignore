@@ -1,0 +1,51 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+build-check/
+publish/
+TestResults/
+
+# ASP.NET / .NET local files
+.dotnet-home/
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+*.nupkg
+
+# Visual Studio / VS Code / Rider
+.vs/
+.vscode/
+.idea/
+
+# Python OCR environment and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Generated app data
+ConvertedText/
+pdf/
+uploads/
+*.log
+
+# Local configuration and secrets
+appsettings.*.local.json
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+
+*.txt

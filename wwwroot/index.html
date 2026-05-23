@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Análisis APA 7</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --blue: #2563EB;
+      --green: #16A34A;
+      --red: #DC2626;
+      --amber: #D97706;
+      --bg: #F3F4F6;
+      --card: #FFFFFF;
+      --text: #111827;
+      --muted: #6B7280;
+      --border: #E5E7EB;
+      --shadow: 0 16px 40px rgba(17, 24, 39, 0.08);
+      font-family: Inter, Poppins, "Segoe UI", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+    }
+
+    .app {
+      width: min(1180px, calc(100% - 32px));
+      margin: 32px auto;
+    }
+
+    .hero,
+    .results-shell {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      display: grid;
+      gap: 22px;
+      padding: 28px;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: clamp(30px, 5vw, 48px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .description {
+      max-width: 760px;
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 16px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+    }
+
+    .button input {
+      display: none;
+    }
+
+    .primary {
+      background: var(--blue);
+      color: #FFFFFF;
+      box-shadow: 0 10px 24px rgba(37, 99, 235, 0.24);
+    }
+
+    .secondary {
+      border-color: #BFDBFE;
+      background: #EFF6FF;
+      color: var(--blue);
+    }
+
+    .drop-zone {
+      display: grid;
+      place-items: center;
+      min-height: 116px;
+      border: 2px dashed #CBD5E1;
+      border-radius: 16px;
+      background: #F8FAFC;
+      color: var(--muted);
+      font-weight: 700;
+      text-align: center;
+      transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+    }
+
+    .drop-zone.is-over {
+      border-color: var(--blue);
+      background: #EFF6FF;
+      color: var(--blue);
+    }
+
+    .status-row {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .results-shell {
+      margin-top: 22px;
+      padding: 24px;
+    }
+
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .results-list {
+      display: grid;
+      gap: 16px;
+    }
+
+    .file-card {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--card);
+      box-shadow: 0 10px 28px rgba(17, 24, 39, 0.06);
+    }
+
+    .file-header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: center;
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+    }
+
+    .file-title {
+      min-width: 0;
+    }
+
+    .file-title h3 {
+      overflow: hidden;
+      margin-bottom: 6px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-title p {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .download {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: #EFF6FF;
+      color: var(--blue);
+      font-size: 14px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .analysis {
+      display: grid;
+      gap: 18px;
+      padding: 20px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .metric {
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #FFFFFF;
+      box-shadow: 0 8px 22px rgba(17, 24, 39, 0.05);
+    }
+
+    .metric strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--text);
+      font-size: 34px;
+      line-height: 1;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .metric.ok strong {
+      color: var(--green);
+    }
+
+    .metric.bad strong {
+      color: var(--red);
+    }
+
+    .metric.other strong {
+      color: var(--amber);
+    }
+
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .filter-pill {
+      min-height: 38px;
+      padding: 0 15px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: #FFFFFF;
+      color: var(--muted);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 900;
+      cursor: pointer;
+      transition: background 180ms ease, color 180ms ease, border-color 180ms ease, transform 180ms ease;
+    }
+
+    .filter-pill:hover {
+      transform: translateY(-1px);
+    }
+
+    .filter-pill.is-active {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #FFFFFF;
+      box-shadow: 0 10px 22px rgba(37, 99, 235, 0.22);
+    }
+
+    .reference-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .reference-card {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #FFFFFF;
+      transition: border-color 160ms ease, box-shadow 160ms ease;
+    }
+
+    .reference-card[open] {
+      border-color: #BFDBFE;
+      box-shadow: 0 12px 28px rgba(37, 99, 235, 0.10);
+    }
+
+    .reference-summary {
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 56px;
+      padding: 0 16px;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .reference-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .reference-summary::after {
+      content: ">";
+      color: var(--muted);
+      font-size: 17px;
+      font-weight: 900;
+      transition: transform 160ms ease;
+    }
+
+    .reference-card[open] > .reference-summary::after {
+      transform: rotate(90deg);
+    }
+
+    .reference-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 34px;
+      height: 28px;
+      border-radius: 999px;
+      background: #F3F4F6;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .reference-name {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 900;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .badge.type {
+      background: #EFF6FF;
+      color: var(--blue);
+    }
+
+    .badge.ok {
+      background: #ECFDF5;
+      color: var(--green);
+    }
+
+    .badge.bad {
+      background: #FEF2F2;
+      color: var(--red);
+    }
+
+    .badge.warn {
+      background: #FFF7ED;
+      color: var(--amber);
+    }
+
+    .reference-content {
+      display: grid;
+      gap: 12px;
+      padding: 0 16px 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .reference-text {
+      margin: 16px 0 0;
+      max-height: 220px;
+      overflow: auto;
+      padding: 14px;
+      border-radius: 12px;
+      background: #F8FAFC;
+      color: var(--text);
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .corrected-title {
+      margin: 0;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .reason-list {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .reason-list li {
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #FFF7ED;
+      color: #92400E;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .reason-list li.ok-reason {
+      background: #ECFDF5;
+      color: #166534;
+    }
+
+    .empty {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    @media (max-width: 760px) {
+      .app {
+        width: min(100% - 20px, 1180px);
+        margin: 16px auto;
+      }
+
+      .hero,
+      .results-shell {
+        border-radius: 14px;
+        padding: 18px;
+      }
+
+      .file-header,
+      .metrics,
+      .reference-summary {
+        grid-template-columns: 1fr;
+      }
+
+      .download,
+      .button {
+        width: 100%;
+      }
+
+      .reference-summary {
+        align-items: stretch;
+        padding: 14px;
+      }
+
+      .reference-summary::after {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Analizador local</p>
+        <h1>Análisis APA 7</h1>
+        <p class="description">
+          Sube uno o varios PDFs. El sistema extrae texto, aplica OCR si hace falta y revisa las referencias en formato APA 7.
+        </p>
+      </div>
+
+      <div class="actions">
+        <label class="button primary">
+          Seleccionar PDFs
+          <input id="fileInput" type="file" accept="application/pdf,.pdf" multiple>
+        </label>
+
+        <label class="button secondary">
+          Seleccionar carpeta
+          <input id="folderInput" type="file" accept="application/pdf,.pdf" multiple webkitdirectory>
+        </label>
+      </div>
+
+      <div id="dropZone" class="drop-zone">Arrastra PDFs aquí</div>
+
+      <div class="status-row">
+        <span id="status">Sin archivos seleccionados.</span>
+      </div>
+    </section>
+
+    <section class="results-shell">
+      <div class="results-header">
+        <h2>Resultados</h2>
+      </div>
+      <div id="resultsList" class="results-list"></div>
+    </section>
+  </main>
+
+  <script>
+    const fileInput = document.querySelector("#fileInput");
+    const folderInput = document.querySelector("#folderInput");
+    const dropZone = document.querySelector("#dropZone");
+    const statusText = document.querySelector("#status");
+    const resultsList = document.querySelector("#resultsList");
+
+    fileInput.addEventListener("change", () => uploadFiles(fileInput.files));
+    folderInput.addEventListener("change", () => uploadFiles(folderInput.files));
+
+    dropZone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      dropZone.classList.add("is-over");
+    });
+
+    dropZone.addEventListener("dragleave", () => {
+      dropZone.classList.remove("is-over");
+    });
+
+    dropZone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      dropZone.classList.remove("is-over");
+      uploadFiles(event.dataTransfer.files);
+    });
+
+    async function uploadFiles(fileList) {
+      const files = Array.from(fileList).filter((file) =>
+        file.name.toLowerCase().endsWith(".pdf")
+      );
+
+      if (files.length === 0) {
+        statusText.textContent = "Selecciona al menos un PDF.";
+        return;
+      }
+
+      const formData = new FormData();
+      files.forEach((file) => formData.append("files", file));
+
+      statusText.textContent = `Analizando ${files.length} archivo(s)...`;
+      resultsList.innerHTML = "";
+
+      try {
+        const response = await fetch("/api/pdf/convert", {
+          method: "POST",
+          body: formData,
+        });
+
+        const payload = await response.json();
+
+        if (!response.ok) {
+          throw new Error(payload.message || "No se pudo completar el análisis.");
+        }
+
+        renderResults(payload.files);
+        statusText.textContent = `Proceso terminado: ${payload.files.length} archivo(s) revisado(s).`;
+      } catch (error) {
+        statusText.textContent = error.message;
+      } finally {
+        fileInput.value = "";
+        folderInput.value = "";
+      }
+    }
+
+    function renderResults(files) {
+      if (!files.length) {
+        resultsList.innerHTML = '<p class="empty">No hay resultados.</p>';
+        return;
+      }
+
+      resultsList.innerHTML = "";
+      files.forEach((file) => resultsList.append(createFileCard(file)));
+    }
+
+    function createFileCard(file) {
+      const card = document.createElement("article");
+      card.className = "file-card";
+
+      const header = document.createElement("header");
+      header.className = "file-header";
+
+      const title = document.createElement("div");
+      title.className = "file-title";
+      title.innerHTML = `
+        <h3>${escapeHtml(file.originalFileName)}</h3>
+        <p>${escapeHtml(file.message)} · ${file.characterCount} caracteres extraídos</p>
+      `;
+
+      header.append(title);
+
+      if (file.downloadUrl) {
+        const link = document.createElement("a");
+        link.className = "download";
+        link.href = file.downloadUrl;
+        link.textContent = "Descargar TXT";
+        header.append(link);
+      }
+
+      card.append(header);
+      card.append(createAnalysis(file.apa7Analysis));
+      return card;
+    }
+
+    function createAnalysis(analysis) {
+      const section = document.createElement("section");
+      section.className = "analysis";
+
+      if (!analysis || analysis.totalReferences === 0) {
+        section.innerHTML = '<p class="empty">No hay referencias para analizar.</p>';
+        return section;
+      }
+
+      const metrics = document.createElement("div");
+      metrics.className = "metrics";
+      metrics.append(
+        createMetric("Total", analysis.totalReferences),
+        createMetric("✅ Correctas", analysis.correctReferences, "ok"),
+        createMetric("⚠️ APA con errores", analysis.incorrectReferences, "bad")
+      );
+      section.append(metrics);
+
+      const filters = document.createElement("div");
+      filters.className = "filters";
+
+      const list = document.createElement("div");
+      list.className = "reference-list";
+
+      const filterState = { value: "all" };
+      const buttons = [
+        createFilter("Todas", "all", analysis.references.length),
+        createFilter("Sí cumplen", "ok", analysis.correctReferences),
+        createFilter("APA con errores", "bad", analysis.incorrectReferences),
+        createFilter("Otro formato", "other", analysis.otherFormatReferences || 0),
+      ];
+
+      buttons.forEach((button) => {
+        filters.append(button);
+        button.addEventListener("click", () => {
+          filterState.value = button.dataset.filter;
+          buttons.forEach((item) => item.classList.toggle("is-active", item === button));
+          renderReferenceList(list, analysis.references, filterState.value);
+        });
+      });
+
+      buttons[0].classList.add("is-active");
+      section.append(filters, list);
+      renderReferenceList(list, analysis.references, filterState.value);
+      return section;
+    }
+
+    function createMetric(label, value, tone = "") {
+      const metric = document.createElement("div");
+      metric.className = `metric ${tone}`.trim();
+      metric.innerHTML = `<strong>${value}</strong><span>${escapeHtml(label)}</span>`;
+      return metric;
+    }
+
+    function createFilter(label, value, count) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "filter-pill";
+      button.dataset.filter = value;
+      button.textContent = `${label} (${count})`;
+      return button;
+    }
+
+    function renderReferenceList(container, references, filter) {
+      container.innerHTML = "";
+
+      const filtered = references.filter((reference) => {
+        if (filter === "ok") return reference.isApa7Compliant;
+        if (filter === "bad") return reference.analysisStatus === "Apa7WithErrors";
+        if (filter === "other") return reference.analysisStatus === "OtherFormat";
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<p class="empty">No hay referencias para este filtro.</p>';
+        return;
+      }
+
+      filtered.forEach((reference) => {
+        container.append(createReferenceCard(reference));
+      });
+    }
+
+    function createReferenceCard(reference) {
+      const details = document.createElement("details");
+      details.className = "reference-card";
+
+      const summary = document.createElement("summary");
+      summary.className = "reference-summary";
+
+      const number = document.createElement("span");
+      number.className = "reference-number";
+      number.textContent = `#${reference.number}`;
+
+      const name = document.createElement("span");
+      name.className = "reference-name";
+      name.textContent = getReferencePreview(reference.reference);
+
+      const typeBadge = document.createElement("span");
+      typeBadge.className = "badge type";
+      typeBadge.textContent = reference.analysisStatus === "OtherFormat"
+        ? reference.citationStyle
+        : shortenType(reference.referenceType);
+
+      const statusBadge = document.createElement("span");
+      statusBadge.className = getStatusClass(reference);
+      statusBadge.textContent = getStatusText(reference);
+
+      summary.append(number, name, typeBadge, statusBadge);
+      details.append(summary);
+
+      const content = document.createElement("div");
+      content.className = "reference-content";
+
+      const text = document.createElement("pre");
+      text.className = "reference-text";
+      text.textContent = reference.reference;
+      content.append(text);
+
+      const reasons = document.createElement("ul");
+      reasons.className = "reason-list";
+      reference.reasons.forEach((reason) => {
+        const item = document.createElement("li");
+        item.className = reason.startsWith("Cumple") ? "ok-reason" : "";
+        item.textContent = reason.startsWith("No cumple") ? `⚠️ ${reason}` : reason;
+        reasons.append(item);
+      });
+      content.append(reasons);
+
+      const correctedTitle = document.createElement("p");
+      correctedTitle.className = "corrected-title";
+      correctedTitle.textContent = "Versión corregida en APA 7";
+      content.append(correctedTitle);
+
+      const corrected = document.createElement("pre");
+      corrected.className = "reference-text";
+      corrected.textContent = reference.correctedReference || "No disponible.";
+      content.append(corrected);
+
+      details.append(content);
+      return details;
+    }
+
+    function getReferencePreview(reference) {
+      const trimmed = reference.trim();
+      return trimmed.length > 130 ? `${trimmed.slice(0, 130)}...` : trimmed;
+    }
+
+    function shortenType(type) {
+      if (type === "Articulo de revista") return "Artículo";
+      if (type === "Capitulo de libro") return "Capítulo";
+      if (type === "Capitulo de libro de actas") return "Actas";
+      if (type === "Autor institucional") return "Institución";
+      return type;
+    }
+
+    function getStatusClass(reference) {
+      if (reference.analysisStatus === "OtherFormat") return "badge warn";
+      return reference.isApa7Compliant ? "badge ok" : "badge bad";
+    }
+
+    function getStatusText(reference) {
+      if (reference.analysisStatus === "OtherFormat") return "Otro formato";
+      return reference.isApa7Compliant ? "✅ APA 7" : "⚠️ APA 7";
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>
