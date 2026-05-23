@@ -19,7 +19,7 @@ TestResults/
 .vscode/
 .idea/
 
-# Python OCR environment and caches
+# Local environments and caches
 .venv/
 venv/
 env/

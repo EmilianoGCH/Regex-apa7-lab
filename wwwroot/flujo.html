@@ -273,9 +273,9 @@
         <article class="step">
           <span class="number">4</span>
           <div>
-            <h3>Si el PDF esta escaneado, usa OCR</h3>
+            <h3>Si no hay texto seleccionable, informa el problema</h3>
             <p>
-              Cuando no hay texto directo, el sistema llama a Python para leer la imagen del PDF y convertirla a texto.
+              Cuando no hay texto directo, el sistema no intenta convertir imagenes. Responde que no se pudo encontrar texto seleccionable en el documento.
             </p>
           </div>
         </article>
@@ -548,9 +548,328 @@ Pineda-Castillo, K. A.    -> segundo autor personal
         <article class="step">
           <span class="number">7</span>
           <div>
+            <h3>Se cuentan los primeros autores</h3>
+            <p>
+              Ademas del año, el sistema identifica el primer autor de cada referencia. Si la referencia
+              empieza con autor personal, toma el apellido y las iniciales. Si empieza con institucion,
+              toma el nombre institucional antes de la fecha.
+            </p>
+            <p>
+              Con ese dato construye un conteo por documento: cuantas referencias pertenecen a cada
+              primer autor. Esto ayuda a comparar rapidamente que autores o instituciones aparecen con
+              mas frecuencia en cada PDF.
+            </p>
+            <p class="note">
+              Explicacion tecnica: el backend regresa un diccionario llamado <strong>authorCounts</strong>.
+              La llave es el primer autor y el valor es cuantas referencias empiezan con ese autor.
+            </p>
+            <h3>Pseudocodigo</h3>
+            <pre class="code-block">funcion contarPrimerosAutores(referencias):
+    conteo = diccionario vacio
+
+    para cada referencia en referencias:
+        autor = extraer texto antes de la fecha
+
+        si autor tiene formato Apellido, Iniciales:
+            primerAutor = primer autor personal
+        si no:
+            primerAutor = autor institucional
+
+        conteo[primerAutor] = conteo[primerAutor] + 1
+
+    regresar conteo ordenado por autor</pre>
+            <h3>Como se ve en el codigo</h3>
+            <pre class="code-block">public static SortedDictionary&lt;string, int&gt; CountFirstAuthors(IEnumerable&lt;string&gt; references)
+{
+    var counts = new SortedDictionary&lt;string, int&gt;();
+
+    foreach (var reference in references)
+    {
+        var firstAuthor = ExtractFirstAuthor(reference);
+
+        if (firstAuthor.Length == 0)
+        {
+            continue;
+        }
+
+        counts[firstAuthor] = counts.TryGetValue(firstAuthor, out var currentCount)
+            ? currentCount + 1
+            : 1;
+    }
+
+    return counts;
+}</pre>
+          </div>
+        </article>
+
+        <div class="arrow">v</div>
+
+        <article class="step">
+          <span class="number">8</span>
+          <div>
+            <h3>Se clasifican y validan los casos de referencias</h3>
+            <p>
+              Despues de separar las referencias, el sistema revisa si cada una parece APA 7 o si
+              pertenece a otro estilo. Cuando detecta APA 7, intenta clasificar el tipo de fuente y
+              valida campos obligatorios segun ese tipo.
+            </p>
+            <h3>Estilos que detecta</h3>
+            <ul>
+              <li><strong>APA 7:</strong> autor, fecha entre parentesis, titulo y fuente.</li>
+              <li><strong>IEEE:</strong> numeracion con corchetes o inicial antes del apellido.</li>
+              <li><strong>Vancouver:</strong> numeracion inicial y abreviaturas de revista medica.</li>
+              <li><strong>MLA:</strong> autor con nombre completo y titulo entre comillas.</li>
+              <li><strong>Chicago:</strong> autor, titulo, ciudad/editorial y año al final.</li>
+              <li><strong>Otro estilo:</strong> cuando no coincide con las reglas anteriores.</li>
+            </ul>
+            <h3>Tipos APA 7 que clasifica</h3>
+            <ul>
+              <li><strong>Articulo de revista:</strong> revisa volumen, numero, paginas y DOI o URL.</li>
+              <li><strong>Capitulo de libro:</strong> revisa "En", editor, paginas con pp. y editorial.</li>
+              <li><strong>Capitulo de libro de actas:</strong> igual que capitulo, pero reconoce proceedings, conferencia, congreso, actas o memorias.</li>
+              <li><strong>Reporte institucional:</strong> revisa autor institucional completo, editorial institucional o URL.</li>
+              <li><strong>Libro:</strong> revisa autor, año, titulo, editorial y formato de edicion.</li>
+              <li><strong>Sitio web:</strong> revisa nombre del sitio y URL.</li>
+              <li><strong>Tipo no estandar:</strong> por ejemplo referencias con entrevistador.</li>
+              <li><strong>Ambiguo:</strong> cuando parece APA 7, pero no hay suficientes datos para ubicar el tipo exacto.</li>
+            </ul>
+            <h3>Reglas generales que valida</h3>
+            <ul>
+              <li>Que exista fecha despues del autor.</li>
+              <li>Que el autor sea personal en formato Apellido, iniciales o institucion.</li>
+              <li>Que multiples autores usen & antes del ultimo autor.</li>
+              <li>Que el DOI este como URL completa: https://doi.org/...</li>
+              <li>Que ORCID no se use como sustituto del DOI o URL de la fuente.</li>
+              <li>Que no use frases antiguas como Retrieved from, Recuperado de u Obtenido de.</li>
+              <li>Que el año no aparezca al final en vez de despues del autor.</li>
+              <li>Que referencias con mas de 20 autores usen puntos suspensivos antes del ultimo autor.</li>
+              <li>Que despues de la fecha se distingan titulo y fuente.</li>
+            </ul>
+            <h3>Pseudocodigo general</h3>
+            <pre class="code-block">funcion analizarReferencia(referencia):
+    referencia = normalizarEspacios(referencia)
+    razones = lista vacia
+
+    estilo = detectarEstilo(referencia)
+
+    si estilo no es APA 7:
+        regresar resultado:
+            tipo = "Otro formato"
+            estado = "OtherFormat"
+            cumple = falso
+            razones = ["Otro formato: " + estilo]
+
+    tipo = clasificarTipoApa7(referencia)
+
+    si falta fecha despues del autor:
+        agregar razon "No cumple: no tiene fecha despues del autor"
+
+    si autor no tiene formato valido:
+        agregar razon "No cumple: autor invalido"
+
+    si DOI esta incompleto:
+        agregar razon "No cumple: DOI no esta como URL"
+
+    razones = razones + validarCamposSegunTipo(referencia, tipo)
+
+    si no hay razones de error:
+        estado = "Apa7Correct"
+        cumple = verdadero
+    si hay razones de error:
+        estado = "Apa7WithErrors"
+        cumple = falso
+
+    regresar resultado con tipo, estilo, estado, cumple y razones</pre>
+            <h3>Snippet: detectar el estilo</h3>
+            <p>
+              Primero el codigo decide si la referencia parece IEEE, Vancouver, MLA, Chicago, APA 7 u otro estilo.
+              Solo si detecta APA 7 pasa a la validacion detallada.
+            </p>
+            <pre class="code-block">private static string DetectCitationStyle(string reference)
+{
+    if (IsIeeeReference(reference))
+    {
+        return "Formato IEEE";
+    }
+
+    if (IsVancouverReference(reference))
+    {
+        return "Formato Vancouver";
+    }
+
+    if (IsMlaReference(reference))
+    {
+        return "Formato MLA";
+    }
+
+    if (IsChicagoReference(reference))
+    {
+        return "Formato Chicago";
+    }
+
+    if (LooksLikeApa7(reference))
+    {
+        return "APA 7";
+    }
+
+    return "Otro estilo";
+}</pre>
+            <h3>Snippet: saber si parece APA 7</h3>
+            <p>
+              Para considerar una referencia como APA 7, debe tener una fecha entre parentesis y antes
+              de esa fecha debe existir un autor personal o institucional con formato reconocible.
+            </p>
+            <pre class="code-block">private static bool LooksLikeApa7(string reference)
+{
+    var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
+
+    if (!dateMatch.Success || dateMatch.Index &lt;= 0)
+    {
+        return false;
+    }
+
+    var authorText = TextUtilities.NormalizeWhitespace(reference[..dateMatch.Index]);
+
+    return Regex.IsMatch(authorText, $@"^(?:{PersonAuthorPattern})+", RegexOptions.CultureInvariant) ||
+        Regex.IsMatch(authorText, $@"^{GroupAuthorPattern}$", RegexOptions.CultureInvariant);
+}</pre>
+            <h3>Snippet: clasificar el tipo APA 7</h3>
+            <p>
+              Cuando ya parece APA 7, el sistema busca pistas: palabras de conferencia, uso de
+              <strong>En</strong>, autor institucional, volumen y paginas, URL o editorial.
+            </p>
+            <pre class="code-block">private static string ClassifyReference(string reference)
+{
+    var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
+    var authorText = dateMatch.Success
+        ? TextUtilities.NormalizeWhitespace(reference[..dateMatch.Index])
+        : string.Empty;
+
+    if (Regex.IsMatch(reference, @"\((?:[^)]*Entrevistador[^)]*)\)", RegexOptions.IgnoreCase))
+    {
+        return "Tipo no estandar";
+    }
+
+    if (IsProceedingsSource(reference))
+    {
+        return "Capitulo de libro de actas";
+    }
+
+    if (Regex.IsMatch(reference, @"\bEn\s+.+\(Eds?\.?\)", RegexOptions.CultureInvariant))
+    {
+        return "Capitulo de libro";
+    }
+
+    if (Regex.IsMatch(authorText, $@"^{GroupAuthorPattern}$", RegexOptions.CultureInvariant))
+    {
+        return "Reporte institucional";
+    }
+
+    if (Regex.IsMatch(reference, @"\b\d+\s*\(\s*\d+\s*\)\s*,\s*\d+", RegexOptions.CultureInvariant))
+    {
+        return "Articulo de revista";
+    }
+
+    if (Regex.IsMatch(reference, @"https?://\S+", RegexOptions.CultureInvariant))
+    {
+        return LooksLikeAcademicSource(reference) ? "Articulo de revista" : "Sitio web";
+    }
+
+    if (HasBookPublisher(reference))
+    {
+        return "Libro";
+    }
+
+    return "Ambiguo";
+}</pre>
+            <h3>Snippet: validar campos por tipo</h3>
+            <p>
+              Cada tipo tiene reglas propias. Por ejemplo, un articulo de revista necesita volumen,
+              numero, paginas y DOI o URL; un capitulo necesita <strong>En</strong>, editor, paginas y editorial.
+            </p>
+            <pre class="code-block">private static IEnumerable&lt;string&gt; ValidateByType(string reference, string referenceType)
+{
+    var reasons = new List&lt;string&gt;();
+
+    switch (referenceType)
+    {
+        case "Articulo de revista":
+            if (!Regex.IsMatch(reference, @"\b\d+\s*(?:\(\s*\d+\s*\))"))
+            {
+                reasons.Add("No cumple: articulo de revista sin volumen y numero detectables.");
+            }
+
+            if (!Regex.IsMatch(reference, @"\b\d+\s*(?:\(\s*\d+\s*\))?\s*,\s*\d+\s*[-–]\s*\d+"))
+            {
+                reasons.Add("No cumple: articulo de revista sin paginas detectables.");
+            }
+
+            if (!Regex.IsMatch(reference, @"https?://\S+"))
+            {
+                reasons.Add("No cumple: articulo de revista sin DOI o URL.");
+            }
+            break;
+
+        case "Capitulo de libro":
+        case "Capitulo de libro de actas":
+            if (!Regex.IsMatch(reference, @"\bEn\s+"))
+            {
+                reasons.Add("No cumple: capitulo de libro/actas sin 'En'.");
+            }
+
+            if (!Regex.IsMatch(reference, @"\b\(Eds?\.?\)|\b\(Ed\.?\)"))
+            {
+                reasons.Add("No cumple: capitulo de libro/actas sin editor.");
+            }
+
+            if (!Regex.IsMatch(reference, @"\(pp\.\s*\d+\s*[-–]\s*\d+\)"))
+            {
+                reasons.Add("No cumple: capitulo de libro/actas sin paginas.");
+            }
+            break;
+    }
+
+    return reasons;
+}</pre>
+            <h3>Snippet: decidir si cumple</h3>
+            <p>
+              Al final, el sistema separa las razones que empiezan con <strong>No cumple:</strong>.
+              Si no hay razones de error, la referencia se marca como correcta. Si hay al menos una,
+              se marca como APA 7 con errores. No modifica ni reescribe la referencia original.
+            </p>
+            <pre class="code-block">var blockingReasons = reasons
+    .Where(reason =&gt; reason.StartsWith("No cumple:", StringComparison.Ordinal))
+    .ToList();
+
+if (blockingReasons.Count == 0)
+{
+    reasons.Insert(0, "Cumple estructura APA 7 basica para el tipo detectado.");
+}
+
+return new ReferenceAnalysis(
+    number,
+    normalized,
+    referenceType,
+    citationStyle,
+    blockingReasons.Count == 0 ? "Apa7Correct" : "Apa7WithErrors",
+    blockingReasons.Count == 0,
+    reasons);</pre>
+            <p class="note">
+              El sistema no corrige referencias. Es un validador escolar basado en patrones:
+              marca casos probables y explica las razones para que el usuario revise la referencia.
+            </p>
+          </div>
+        </article>
+
+        <div class="arrow">v</div>
+
+        <article class="step">
+          <span class="number">9</span>
+          <div>
             <h3>La web muestra el resultado</h3>
             <p>
-              El frontend muestra cada archivo como una seccion desplegable, sus coincidencias APA 7 y la tabla de años citados.
+              El frontend muestra cada archivo, las referencias detectadas, si cumplen o no APA 7,
+              las razones del analisis, el conteo de años citados y el conteo de primeros autores.
             </p>
           </div>
         </article>
@@ -570,21 +889,15 @@ Pineda-Castillo, K. A.    -> segundo autor personal
         <article class="card">
           <span class="file">PdfTextService.cs</span>
           <p>
-            Extrae texto con PdfPig. Si no hay texto, llama al OCR de Python.
-          </p>
-        </article>
-
-        <article class="card">
-          <span class="file">ocr_pdf.py</span>
-          <p>
-            Lee PDFs escaneados como imagenes y usa EasyOCR para convertirlos a texto.
+            Extrae texto seleccionable con PdfPig y cuenta los caracteres utiles.
           </p>
         </article>
 
         <article class="card">
           <span class="file">Apa7ReferenceService.cs</span>
           <p>
-            Encuentra referencias APA 7 y cuenta los años que aparecen en ellas.
+            Encuentra referencias, detecta estilos, clasifica tipos APA 7, valida reglas,
+            cuenta años citados y cuenta primeros autores.
           </p>
         </article>
 
@@ -608,9 +921,10 @@ Pineda-Castillo, K. A.    -> segundo autor personal
       <h2>Idea principal</h2>
       <ul>
         <li>Si el PDF tiene texto, se extrae directamente.</li>
-        <li>Si el PDF es escaneado, se usa OCR.</li>
-        <li>Despues se buscan referencias APA 7.</li>
-        <li>Finalmente se muestran coincidencias y una tabla de años citados.</li>
+        <li>Si el PDF no tiene texto seleccionable, se informa al usuario.</li>
+        <li>Despues se buscan referencias y se detecta si son APA 7 u otro formato.</li>
+        <li>Se validan los casos APA 7: articulo, libro, capitulo, actas, reporte institucional, sitio web, tipo no estandar y ambiguo.</li>
+        <li>Finalmente se muestran coincidencias, razones, conteo de años y conteo de primeros autores.</li>
       </ul>
     </section>
   </main>

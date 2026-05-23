@@ -9,8 +9,6 @@ public sealed record PdfConversionResult(
     Apa7DocumentAnalysis Apa7Analysis,
     string Message);
 
-public sealed record OcrResult(bool Success, string Message);
-
 public sealed record Apa7DocumentAnalysis(
     int TotalReferences,
     int CorrectReferences,
@@ -25,5 +23,4 @@ public sealed record ReferenceAnalysis(
     string CitationStyle,
     string AnalysisStatus,
     bool IsApa7Compliant,
-    IReadOnlyList<string> Reasons,
-    string CorrectedReference);
+    IReadOnlyList<string> Reasons);

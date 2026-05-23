@@ -300,8 +300,7 @@ public static class Apa7ReferenceService
                 citationStyle,
                 "OtherFormat",
                 false,
-                reasons,
-                "No aplica: la referencia no esta en formato APA 7.");
+                reasons);
         }
 
         if (Regex.IsMatch(normalized, @"\((?:[^)]*Entrevistador[^)]*)\)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
@@ -408,8 +407,7 @@ public static class Apa7ReferenceService
             citationStyle,
             blockingReasons.Count == 0 && !isNonStandardApaType ? "Apa7Correct" : "Apa7WithErrors",
             blockingReasons.Count == 0,
-            reasons,
-            BuildCorrectedReference(normalized, referenceType, blockingReasons));
+            reasons);
     }
 
     private static string DetectCitationStyle(string reference)
@@ -787,36 +785,6 @@ public static class Apa7ReferenceService
             .ToList();
 
         return parts.Count >= 2;
-    }
-
-    private static string BuildCorrectedReference(string reference, string referenceType, IReadOnlyList<string> blockingReasons)
-    {
-        if (blockingReasons.Count == 0)
-        {
-            return reference;
-        }
-
-        var corrected = reference
-            .Replace("doi:", "https://doi.org/", StringComparison.OrdinalIgnoreCase)
-            .Replace("Retrieved from ", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("Recuperado de ", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Replace("Obtenido de ", string.Empty, StringComparison.OrdinalIgnoreCase);
-
-        if (corrected != reference)
-        {
-            return corrected;
-        }
-
-        return referenceType switch
-        {
-            "Articulo de revista" => "No se puede corregir automaticamente: se requieren revista, volumen, numero, paginas y DOI/URL reales.",
-            "Libro" => "No se puede corregir automaticamente: se requiere confirmar titulo completo, edicion y editorial.",
-            "Sitio web" => "No se puede corregir automaticamente: se requiere nombre del sitio y URL completa.",
-            "Reporte institucional" => "No se puede corregir automaticamente: se requiere institucion completa y editorial o URL.",
-            "Capitulo de libro" => "No se puede corregir automaticamente: se requieren editor, titulo del libro, paginas y editorial.",
-            "Capitulo de libro de actas" => "No se puede corregir automaticamente: se requieren editor, titulo del proceedings/actas, paginas y editorial.",
-            _ => "No se puede corregir automaticamente: faltan datos bibliograficos obligatorios.",
-        };
     }
 
     private static bool IsProceedingsSource(string reference)

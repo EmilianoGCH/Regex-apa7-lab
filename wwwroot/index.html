@@ -421,14 +421,6 @@
       overflow-wrap: anywhere;
     }
 
-    .corrected-title {
-      margin: 0;
-      color: var(--text);
-      font-size: 13px;
-      font-weight: 900;
-      text-transform: uppercase;
-    }
-
     .reason-list {
       display: grid;
       gap: 8px;
@@ -497,7 +489,7 @@
         <p class="eyebrow">Analizador local</p>
         <h1>Análisis APA 7</h1>
         <p class="description">
-          Sube uno o varios PDFs. El sistema extrae texto, aplica OCR si hace falta y revisa las referencias en formato APA 7.
+          Sube uno o varios PDFs. El sistema extrae texto seleccionable y revisa las referencias en formato APA 7.
         </p>
       </div>
 
@@ -758,16 +750,6 @@
         reasons.append(item);
       });
       content.append(reasons);
-
-      const correctedTitle = document.createElement("p");
-      correctedTitle.className = "corrected-title";
-      correctedTitle.textContent = "Versión corregida en APA 7";
-      content.append(correctedTitle);
-
-      const corrected = document.createElement("pre");
-      corrected.className = "reference-text";
-      corrected.textContent = reference.correctedReference || "No disponible.";
-      content.append(corrected);
 
       details.append(content);
       return details;
