@@ -501,10 +501,21 @@ public static class Apa7ReferenceService
             return "Reporte institucional";
         }
 
-        if (Regex.IsMatch(reference, @"\b\d+\s*\(\s*\d+\s*\)\s*,\s*\d+", RegexOptions.CultureInvariant) ||
+        if (HasBookPublisher(reference) && !LooksLikeAcademicSource(reference))
+        {
+            return "Libro";
+        }
+
+        if (HasJournalVolume(reference) ||
+            Regex.IsMatch(reference, @"\b\d+\s*\(\s*\d+\s*\)\s*,\s*\d+", RegexOptions.CultureInvariant) ||
             Regex.IsMatch(reference, @"\b\d+\s*,\s*\d+\s*[-–]\s*\d+", RegexOptions.CultureInvariant))
         {
             return "Articulo de revista";
+        }
+
+        if (HasBookPublisher(reference))
+        {
+            return "Libro";
         }
 
         if (Regex.IsMatch(reference, @"https?://\S+", RegexOptions.CultureInvariant))
@@ -517,11 +528,6 @@ public static class Apa7ReferenceService
             return "Tipo no estandar";
         }
 
-        if (HasBookPublisher(reference))
-        {
-            return "Libro";
-        }
-
         return "Ambiguo";
     }
 
@@ -532,14 +538,9 @@ public static class Apa7ReferenceService
         switch (referenceType)
         {
             case "Articulo de revista":
-                if (!Regex.IsMatch(reference, @"\b\d+\s*(?:\(\s*\d+\s*\))", RegexOptions.CultureInvariant))
+                if (!HasJournalVolume(reference))
                 {
-                    reasons.Add("No cumple: articulo de revista sin volumen y numero detectables.");
-                }
-
-                if (!Regex.IsMatch(reference, @"\b\d+\s*(?:\(\s*\d+\s*\))?\s*,\s*\d+\s*[-–]\s*\d+", RegexOptions.CultureInvariant))
-                {
-                    reasons.Add("No cumple: articulo de revista sin paginas detectables.");
+                    reasons.Add("No cumple: articulo de revista sin volumen detectable.");
                 }
 
                 if (!Regex.IsMatch(reference, @"https?://\S+", RegexOptions.CultureInvariant))
@@ -705,10 +706,26 @@ public static class Apa7ReferenceService
 
     private static bool LooksLikeAcademicSource(string reference)
     {
-        return Regex.IsMatch(reference, @"\b\d+\s*(?:\(\s*\d+\s*\))?\s*,\s*\d+", RegexOptions.CultureInvariant) ||
+        return HasJournalVolume(reference) ||
+            Regex.IsMatch(reference, @"\b\d+\s*(?:\(\s*\d+\s*\))?\s*,\s*\d+", RegexOptions.CultureInvariant) ||
             reference.Contains("journal", StringComparison.OrdinalIgnoreCase) ||
-            reference.Contains("revista", StringComparison.OrdinalIgnoreCase) ||
-            reference.Contains("https://doi.org/", StringComparison.OrdinalIgnoreCase);
+            reference.Contains("revista", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasJournalVolume(string reference)
+    {
+        var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
+
+        if (!dateMatch.Success)
+        {
+            return false;
+        }
+
+        var afterDate = reference[(dateMatch.Index + dateMatch.Length)..];
+        return Regex.IsMatch(
+            afterDate,
+            @"\.\s*[^.]{2,120},\s*\d+\s*(?:\(\s*\d+\s*\))?(?:,|\.)",
+            RegexOptions.CultureInvariant);
     }
 
     private static bool UsesOldRetrievalPhrase(string reference)

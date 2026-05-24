@@ -304,6 +304,89 @@
       gap: 12px;
     }
 
+    .count-section {
+      display: grid;
+      gap: 14px;
+      padding: 20px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: #FFFFFF;
+      box-shadow: 0 10px 28px rgba(17, 24, 39, 0.06);
+    }
+
+    .count-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .count-header span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+
+    .count-table {
+      width: 100%;
+      min-width: 620px;
+      border-collapse: collapse;
+      background: #FFFFFF;
+      font-size: 14px;
+    }
+
+    .count-table th,
+    .count-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .count-table th:first-child,
+    .count-table td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background: #FFFFFF;
+      text-align: left;
+    }
+
+    .count-table thead th {
+      background: #F8FAFC;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .count-table thead th:first-child {
+      background: #F8FAFC;
+    }
+
+    .count-table tbody th {
+      font-weight: 800;
+    }
+
+    .count-table .total-cell,
+    .count-table tfoot th,
+    .count-table tfoot td {
+      background: #EFF6FF;
+      color: var(--blue);
+      font-weight: 900;
+    }
+
+    .count-table tfoot th:first-child {
+      background: #EFF6FF;
+    }
+
     .reference-card {
       overflow: hidden;
       border: 1px solid var(--border);
@@ -591,6 +674,8 @@
 
       resultsList.innerHTML = "";
       files.forEach((file) => resultsList.append(createFileCard(file)));
+      resultsList.append(createCountSection("Años citados", "Año", files, "yearCounts", "año(s)"));
+      resultsList.append(createCountSection("Primeros autores", "Primer autor", files, "authorCounts", "autor(es)"));
     }
 
     function createFileCard(file) {
@@ -683,6 +768,131 @@
       button.dataset.filter = value;
       button.textContent = `${label} (${count})`;
       return button;
+    }
+
+    function createCountSection(title, firstColumnLabel, files, countKey, unitLabel) {
+      const keys = collectCountKeys(files, countKey);
+      const section = document.createElement("section");
+      section.className = "count-section";
+
+      const header = document.createElement("div");
+      header.className = "count-header";
+
+      const heading = document.createElement("h3");
+      heading.textContent = title;
+
+      const count = document.createElement("span");
+      count.textContent = `${keys.length} ${unitLabel}`;
+
+      header.append(heading, count);
+      section.append(header);
+
+      if (keys.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "empty";
+        empty.textContent = `No se detectaron ${title.toLowerCase()}.`;
+        section.append(empty);
+        return section;
+      }
+
+      section.append(createCountTable(firstColumnLabel, keys, files, countKey));
+      return section;
+    }
+
+    function collectCountKeys(files, countKey) {
+      const keys = Array.from(
+        new Set(files.flatMap((file) => Object.keys(file[countKey] || {})))
+      );
+
+      if (countKey === "yearCounts") {
+        return keys.map((key) => Number(key)).sort((a, b) => a - b);
+      }
+
+      return keys.sort((a, b) => a.localeCompare(b, "es"));
+    }
+
+    function createCountTable(firstColumnLabel, keys, files, countKey) {
+      const tableWrap = document.createElement("div");
+      tableWrap.className = "table-wrap";
+
+      const table = document.createElement("table");
+      table.className = "count-table";
+
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+      headerRow.append(createTableHeader(firstColumnLabel));
+
+      files.forEach((file) => {
+        headerRow.append(createTableHeader(file.originalFileName));
+      });
+
+      headerRow.append(createTableHeader("Total"));
+      thead.append(headerRow);
+      table.append(thead);
+
+      const tbody = document.createElement("tbody");
+
+      keys.forEach((key) => {
+        const row = document.createElement("tr");
+        const label = document.createElement("th");
+        label.scope = "row";
+        label.textContent = String(key);
+        row.append(label);
+
+        let rowTotal = 0;
+
+        files.forEach((file) => {
+          const value = Number((file[countKey] || {})[key] || 0);
+          rowTotal += value;
+
+          const cell = document.createElement("td");
+          cell.textContent = String(value);
+          row.append(cell);
+        });
+
+        const totalCell = document.createElement("td");
+        totalCell.className = "total-cell";
+        totalCell.textContent = String(rowTotal);
+        row.append(totalCell);
+        tbody.append(row);
+      });
+
+      table.append(tbody);
+
+      const tfoot = document.createElement("tfoot");
+      const totalRow = document.createElement("tr");
+      const totalLabel = document.createElement("th");
+      totalLabel.scope = "row";
+      totalLabel.textContent = "Total";
+      totalRow.append(totalLabel);
+
+      let grandTotal = 0;
+
+      files.forEach((file) => {
+        const fileTotal = Object.values(file[countKey] || {})
+          .reduce((sum, value) => sum + Number(value || 0), 0);
+        grandTotal += fileTotal;
+
+        const cell = document.createElement("td");
+        cell.textContent = String(fileTotal);
+        totalRow.append(cell);
+      });
+
+      const grandTotalCell = document.createElement("td");
+      grandTotalCell.textContent = String(grandTotal);
+      totalRow.append(grandTotalCell);
+      tfoot.append(totalRow);
+      table.append(tfoot);
+
+      tableWrap.append(table);
+      return tableWrap;
+    }
+
+    function createTableHeader(text) {
+      const header = document.createElement("th");
+      header.scope = "col";
+      header.textContent = text;
+      return header;
     }
 
     function renderReferenceList(container, references, filter) {

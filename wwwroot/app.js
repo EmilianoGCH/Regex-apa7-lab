@@ -193,6 +193,10 @@ function renderYearSummary(files) {
     headerRow.append(header);
   });
 
+  const totalHeader = document.createElement("th");
+  totalHeader.textContent = "Total";
+  headerRow.append(totalHeader);
+
   thead.append(headerRow);
   table.append(thead);
 
@@ -205,16 +209,51 @@ function renderYearSummary(files) {
     yearCell.textContent = String(year);
     row.append(yearCell);
 
+    let rowTotal = 0;
+
     files.forEach((file) => {
+      const value = (file.yearCounts || {})[year] || 0;
+      rowTotal += value;
+
       const cell = document.createElement("td");
-      cell.textContent = String((file.yearCounts || {})[year] || 0);
+      cell.textContent = String(value);
       row.append(cell);
     });
+
+    const totalCell = document.createElement("td");
+    totalCell.textContent = String(rowTotal);
+    row.append(totalCell);
 
     tbody.append(row);
   });
 
   table.append(tbody);
+
+  const tfoot = document.createElement("tfoot");
+  const totalRow = document.createElement("tr");
+  const totalLabel = document.createElement("th");
+  totalLabel.scope = "row";
+  totalLabel.textContent = "Total";
+  totalRow.append(totalLabel);
+
+  let grandTotal = 0;
+
+  files.forEach((file) => {
+    const fileTotal = Object.values(file.yearCounts || {})
+      .reduce((sum, value) => sum + Number(value || 0), 0);
+    grandTotal += fileTotal;
+
+    const cell = document.createElement("td");
+    cell.textContent = String(fileTotal);
+    totalRow.append(cell);
+  });
+
+  const grandTotalCell = document.createElement("td");
+  grandTotalCell.textContent = String(grandTotal);
+  totalRow.append(grandTotalCell);
+  tfoot.append(totalRow);
+  table.append(tfoot);
+
   tableWrap.append(table);
   body.append(tableWrap);
   summary.append(body);
@@ -386,6 +425,10 @@ function renderAuthorSummary(files) {
     headerRow.append(header);
   });
 
+  const totalHeader = document.createElement("th");
+  totalHeader.textContent = "Total";
+  headerRow.append(totalHeader);
+
   thead.append(headerRow);
   table.append(thead);
 
@@ -398,16 +441,51 @@ function renderAuthorSummary(files) {
     authorCell.textContent = author;
     row.append(authorCell);
 
+    let rowTotal = 0;
+
     files.forEach((file) => {
+      const value = (file.authorCounts || {})[author] || 0;
+      rowTotal += value;
+
       const cell = document.createElement("td");
-      cell.textContent = String((file.authorCounts || {})[author] || 0);
+      cell.textContent = String(value);
       row.append(cell);
     });
+
+    const totalCell = document.createElement("td");
+    totalCell.textContent = String(rowTotal);
+    row.append(totalCell);
 
     tbody.append(row);
   });
 
   table.append(tbody);
+
+  const tfoot = document.createElement("tfoot");
+  const totalRow = document.createElement("tr");
+  const totalLabel = document.createElement("th");
+  totalLabel.scope = "row";
+  totalLabel.textContent = "Total";
+  totalRow.append(totalLabel);
+
+  let grandTotal = 0;
+
+  files.forEach((file) => {
+    const fileTotal = Object.values(file.authorCounts || {})
+      .reduce((sum, value) => sum + Number(value || 0), 0);
+    grandTotal += fileTotal;
+
+    const cell = document.createElement("td");
+    cell.textContent = String(fileTotal);
+    totalRow.append(cell);
+  });
+
+  const grandTotalCell = document.createElement("td");
+  grandTotalCell.textContent = String(grandTotal);
+  totalRow.append(grandTotalCell);
+  tfoot.append(totalRow);
+  table.append(tfoot);
+
   tableWrap.append(table);
   body.append(tableWrap);
   summary.append(body);

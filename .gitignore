@@ -1,7 +1,7 @@
 # Build output
 [Bb]in/
 [Oo]bj/
-build-check/
+build-check*/
 publish/
 TestResults/
 

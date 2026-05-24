@@ -624,7 +624,7 @@ Pineda-Castillo, K. A.    -> segundo autor personal
             </ul>
             <h3>Tipos APA 7 que clasifica</h3>
             <ul>
-              <li><strong>Articulo de revista:</strong> revisa volumen, numero, paginas y DOI o URL.</li>
+              <li><strong>Articulo de revista:</strong> revisa volumen y DOI o URL. El numero de issue y las paginas son opcionales.</li>
               <li><strong>Capitulo de libro:</strong> revisa "En", editor, paginas con pp. y editorial.</li>
               <li><strong>Capitulo de libro de actas:</strong> igual que capitulo, pero reconoce proceedings, conferencia, congreso, actas o memorias.</li>
               <li><strong>Reporte institucional:</strong> revisa autor institucional completo, editorial institucional o URL.</li>
@@ -736,7 +736,8 @@ Pineda-Castillo, K. A.    -> segundo autor personal
             <h3>Snippet: clasificar el tipo APA 7</h3>
             <p>
               Cuando ya parece APA 7, el sistema busca pistas: palabras de conferencia, uso de
-              <strong>En</strong>, autor institucional, volumen y paginas, URL o editorial.
+              <strong>En</strong>, autor institucional, volumen y paginas, editorial o URL.
+              Si detecta editorial sin nombre de revista, clasifica como libro aunque tambien tenga DOI.
             </p>
             <pre class="code-block">private static string ClassifyReference(string reference)
 {
@@ -765,14 +766,15 @@ Pineda-Castillo, K. A.    -> segundo autor personal
         return "Reporte institucional";
     }
 
-    if (Regex.IsMatch(reference, @"\b\d+\s*\(\s*\d+\s*\)\s*,\s*\d+", RegexOptions.CultureInvariant))
+    if (HasBookPublisher(reference) &amp;&amp; !LooksLikeAcademicSource(reference))
     {
-        return "Articulo de revista";
+        return "Libro";
     }
 
-    if (Regex.IsMatch(reference, @"https?://\S+", RegexOptions.CultureInvariant))
+    if (HasJournalVolume(reference) ||
+        Regex.IsMatch(reference, @"\b\d+\s*\(\s*\d+\s*\)\s*,\s*\d+", RegexOptions.CultureInvariant))
     {
-        return LooksLikeAcademicSource(reference) ? "Articulo de revista" : "Sitio web";
+        return "Articulo de revista";
     }
 
     if (HasBookPublisher(reference))
@@ -780,12 +782,21 @@ Pineda-Castillo, K. A.    -> segundo autor personal
         return "Libro";
     }
 
+    if (Regex.IsMatch(reference, @"https?://\S+", RegexOptions.CultureInvariant))
+    {
+        return LooksLikeAcademicSource(reference) ? "Articulo de revista" : "Sitio web";
+    }
+
     return "Ambiguo";
 }</pre>
             <h3>Snippet: validar campos por tipo</h3>
             <p>
-              Cada tipo tiene reglas propias. Por ejemplo, un articulo de revista necesita volumen,
-              numero, paginas y DOI o URL; un capitulo necesita <strong>En</strong>, editor, paginas y editorial.
+              Cada tipo tiene reglas propias. Por ejemplo, un articulo de revista necesita volumen
+              y DOI o URL. El numero de issue puede aparecer, pero no se marca como error si falta.
+              Tampoco se marca error si faltan paginas, porque algunas revistas usan numero de articulo
+              o identificador DOI en lugar de paginacion tradicional. Un capitulo necesita
+              <strong>En</strong>, editor, paginas y editorial.
+              Un libro con editorial y DOI sigue siendo libro, no articulo de revista.
             </p>
             <pre class="code-block">private static IEnumerable&lt;string&gt; ValidateByType(string reference, string referenceType)
 {
@@ -794,14 +805,9 @@ Pineda-Castillo, K. A.    -> segundo autor personal
     switch (referenceType)
     {
         case "Articulo de revista":
-            if (!Regex.IsMatch(reference, @"\b\d+\s*(?:\(\s*\d+\s*\))"))
+            if (!HasJournalVolume(reference))
             {
-                reasons.Add("No cumple: articulo de revista sin volumen y numero detectables.");
-            }
-
-            if (!Regex.IsMatch(reference, @"\b\d+\s*(?:\(\s*\d+\s*\))?\s*,\s*\d+\s*[-–]\s*\d+"))
-            {
-                reasons.Add("No cumple: articulo de revista sin paginas detectables.");
+                reasons.Add("No cumple: articulo de revista sin volumen detectable.");
             }
 
             if (!Regex.IsMatch(reference, @"https?://\S+"))
@@ -870,6 +876,7 @@ return new ReferenceAnalysis(
             <p>
               El frontend muestra cada archivo, las referencias detectadas, si cumplen o no APA 7,
               las razones del analisis, el conteo de años citados y el conteo de primeros autores.
+              Las tablas de conteo incluyen totales por fila, por archivo y un total general.
             </p>
           </div>
         </article>
@@ -924,7 +931,7 @@ return new ReferenceAnalysis(
         <li>Si el PDF no tiene texto seleccionable, se informa al usuario.</li>
         <li>Despues se buscan referencias y se detecta si son APA 7 u otro formato.</li>
         <li>Se validan los casos APA 7: articulo, libro, capitulo, actas, reporte institucional, sitio web, tipo no estandar y ambiguo.</li>
-        <li>Finalmente se muestran coincidencias, razones, conteo de años y conteo de primeros autores.</li>
+        <li>Finalmente se muestran coincidencias, razones, conteo de años, conteo de primeros autores y totales por tabla.</li>
       </ul>
     </section>
   </main>
