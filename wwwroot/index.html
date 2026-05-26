@@ -167,6 +167,32 @@
       margin-bottom: 16px;
     }
 
+    .report-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 0 14px;
+      border: 1px solid #BFDBFE;
+      border-radius: 999px;
+      background: #EFF6FF;
+      color: var(--blue);
+      font: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+
+    .report-button:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    .report-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+
     .results-list {
       display: grid;
       gap: 16px;
@@ -302,6 +328,54 @@
     .reference-list {
       display: grid;
       gap: 12px;
+    }
+
+    .citation-panel {
+      display: grid;
+      gap: 12px;
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      background: #FFFFFF;
+    }
+
+    .citation-panel h4 {
+      margin: 0;
+      font-size: 15px;
+    }
+
+    .citation-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .citation-list li {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #BFDBFE;
+      border-radius: 999px;
+      background: #EFF6FF;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .citation-list span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .citation-count {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
     }
 
     .count-section {
@@ -550,7 +624,8 @@
       }
 
       .download,
-      .button {
+      .button,
+      .report-button {
         width: 100%;
       }
 
@@ -598,6 +673,7 @@
     <section class="results-shell">
       <div class="results-header">
         <h2>Resultados</h2>
+        <button id="exportReportButton" class="report-button" type="button" disabled>Exportar reporte</button>
       </div>
       <div id="resultsList" class="results-list"></div>
     </section>
@@ -609,9 +685,12 @@
     const dropZone = document.querySelector("#dropZone");
     const statusText = document.querySelector("#status");
     const resultsList = document.querySelector("#resultsList");
+    const exportReportButton = document.querySelector("#exportReportButton");
+    let latestReportFiles = [];
 
     fileInput.addEventListener("change", () => uploadFiles(fileInput.files));
     folderInput.addEventListener("change", () => uploadFiles(folderInput.files));
+    exportReportButton.addEventListener("click", exportReport);
 
     dropZone.addEventListener("dragover", (event) => {
       event.preventDefault();
@@ -643,6 +722,8 @@
 
       statusText.textContent = `Analizando ${files.length} archivo(s)...`;
       resultsList.innerHTML = "";
+      latestReportFiles = [];
+      exportReportButton.disabled = true;
 
       try {
         const response = await fetch("/api/pdf/convert", {
@@ -669,13 +750,34 @@
     function renderResults(files) {
       if (!files.length) {
         resultsList.innerHTML = '<p class="empty">No hay resultados.</p>';
+        latestReportFiles = [];
+        exportReportButton.disabled = true;
         return;
       }
 
       resultsList.innerHTML = "";
+      latestReportFiles = files;
+      exportReportButton.disabled = false;
       files.forEach((file) => resultsList.append(createFileCard(file)));
-      resultsList.append(createCountSection("Años citados", "Año", files, "yearCounts", "año(s)"));
-      resultsList.append(createCountSection("Primeros autores", "Primer autor", files, "authorCounts", "autor(es)"));
+      resultsList.append(createCountSection("Años citados en APA 7 correctas", "Año", files, "yearCounts", "año(s)"));
+      resultsList.append(createCountSection("Primeros autores en APA 7 correctas", "Primer autor", files, "authorCounts", "autor(es)"));
+    }
+
+    function exportReport() {
+      if (!latestReportFiles.length) {
+        return;
+      }
+
+      const html = buildReportHtml(latestReportFiles);
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `reporte-apa7-${new Date().toISOString().slice(0, 10)}.html`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
     }
 
     function createFileCard(file) {
@@ -703,8 +805,45 @@
       }
 
       card.append(header);
+      card.append(createParentheticalCitations(file.parentheticalCitations || []));
       card.append(createAnalysis(file.apa7Analysis));
       return card;
+    }
+
+    function createParentheticalCitations(citations) {
+      const panel = document.createElement("section");
+      panel.className = "citation-panel";
+
+      const title = document.createElement("h4");
+      title.textContent = `Citas parentéticas fuera de referencias (${citations.length})`;
+      panel.append(title);
+
+      if (citations.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "empty";
+        empty.textContent = "No se detectaron citas parentéticas en el cuerpo del documento.";
+        panel.append(empty);
+        return panel;
+      }
+
+      const list = document.createElement("ul");
+      list.className = "citation-list";
+
+      citations.forEach((citation) => {
+        const item = document.createElement("li");
+        const text = document.createElement("span");
+        text.textContent = citation.citation;
+
+        const count = document.createElement("strong");
+        count.className = "citation-count";
+        count.textContent = `x${citation.count}`;
+
+        item.append(text, count);
+        list.append(item);
+      });
+
+      panel.append(list);
+      return panel;
     }
 
     function createAnalysis(analysis) {
@@ -956,7 +1095,9 @@
       reference.reasons.forEach((reason) => {
         const item = document.createElement("li");
         item.className = reason.startsWith("Cumple") ? "ok-reason" : "";
-        item.textContent = reason.startsWith("No cumple") ? `⚠️ ${reason}` : reason;
+        item.textContent = reason.startsWith("No cumple") || reason.startsWith("Advertencia")
+          ? `⚠️ ${reason}`
+          : reason;
         reasons.append(item);
       });
       content.append(reasons);
@@ -986,6 +1127,163 @@
     function getStatusText(reference) {
       if (reference.analysisStatus === "OtherFormat") return "Otro formato";
       return reference.isApa7Compliant ? "✅ APA 7" : "⚠️ APA 7";
+    }
+
+    function buildReportHtml(files) {
+      const generatedAt = new Date().toLocaleString("es-MX");
+
+      return `<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reporte APA 7</title>
+  <style>
+    body { margin: 0; background: #f3f4f6; color: #111827; font-family: Arial, Helvetica, sans-serif; }
+    main { width: min(1100px, calc(100% - 32px)); margin: 28px auto; }
+    header, section { margin-bottom: 16px; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; background: #ffffff; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 8px; font-size: 30px; }
+    h2 { margin-bottom: 14px; font-size: 22px; }
+    h3 { margin-bottom: 10px; font-size: 17px; }
+    .muted { color: #6b7280; }
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .metric { padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f8fafc; }
+    .metric strong, .metric span { display: block; }
+    .metric strong { margin-bottom: 4px; font-size: 24px; }
+    .metric span { color: #6b7280; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+    th, td { padding: 9px 10px; border: 1px solid #e5e7eb; text-align: left; vertical-align: top; }
+    th { background: #eff6ff; color: #1d4ed8; }
+    td.number, th.number { text-align: right; }
+    tfoot th, tfoot td, .total-cell { background: #eff6ff; font-weight: 700; }
+    ol, ul { margin: 0; padding-left: 22px; }
+    li { margin-bottom: 8px; }
+    pre { overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; padding: 10px; border: 1px solid #e5e7eb; border-radius: 6px; background: #f8fafc; font-family: Consolas, "Courier New", monospace; font-size: 12px; line-height: 1.45; }
+    .file-title { margin-bottom: 4px; }
+    .reference { display: grid; gap: 8px; margin-bottom: 12px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; }
+    .status-ok { color: #15803d; font-weight: 700; }
+    .status-bad { color: #b91c1c; font-weight: 700; }
+    .status-warn { color: #b45309; font-weight: 700; }
+    @media (max-width: 760px) { .metrics { grid-template-columns: 1fr; } main { width: min(100% - 20px, 1100px); } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Reporte de análisis APA 7</h1>
+      <p class="muted">Generado el ${escapeHtml(generatedAt)}. Archivos revisados: ${files.length}.</p>
+    </header>
+    ${renderReportFiles(files)}
+    ${renderReportCountSection("Años citados en APA 7 correctas", "Año", files, "yearCounts")}
+    ${renderReportCountSection("Primeros autores en APA 7 correctas", "Primer autor", files, "authorCounts")}
+  </main>
+</body>
+</html>`;
+    }
+
+    function renderReportFiles(files) {
+      return files.map((file) => {
+        const analysis = file.apa7Analysis || {};
+        return `<section>
+  <h2 class="file-title">${escapeHtml(file.originalFileName)}</h2>
+  <p class="muted">${escapeHtml(file.message)}. Caracteres extraídos: ${Number(file.characterCount || 0)}.</p>
+  <div class="metrics">
+    <div class="metric"><strong>${Number(analysis.totalReferences || 0)}</strong><span>Referencias</span></div>
+    <div class="metric"><strong>${Number(analysis.correctReferences || 0)}</strong><span>APA 7 correctas</span></div>
+    <div class="metric"><strong>${Number(analysis.incorrectReferences || 0)}</strong><span>APA con errores</span></div>
+    <div class="metric"><strong>${(file.parentheticalCitations || []).length}</strong><span>Citas parentéticas</span></div>
+  </div>
+  ${renderReportParentheticalCitations(file.parentheticalCitations || [])}
+  ${renderReportReferences(analysis)}
+</section>`;
+      }).join("");
+    }
+
+    function renderReportParentheticalCitations(citations) {
+      if (!citations.length) {
+        return `<h3>Citas parentéticas fuera de referencias</h3><p class="muted">No se detectaron citas parentéticas en el cuerpo del documento.</p>`;
+      }
+
+      return `<h3>Citas parentéticas fuera de referencias</h3>
+<table>
+  <thead><tr><th>Cita</th><th class="number">Veces</th></tr></thead>
+  <tbody>
+    ${citations.map((citation) => `<tr><td>${escapeHtml(citation.citation)}</td><td class="number">${Number(citation.count || 0)}</td></tr>`).join("")}
+  </tbody>
+</table>`;
+    }
+
+    function renderReportReferences(analysis) {
+      const references = analysis.references || [];
+
+      if (!references.length) {
+        return `<h3>Referencias analizadas</h3><p class="muted">No hay referencias para analizar.</p>`;
+      }
+
+      return `<h3>Referencias analizadas APA 7</h3>
+${references.map((reference) => {
+        const statusClass = reference.analysisStatus === "OtherFormat"
+          ? "status-warn"
+          : reference.isApa7Compliant ? "status-ok" : "status-bad";
+        const statusText = reference.analysisStatus === "OtherFormat"
+          ? "Otro formato"
+          : reference.isApa7Compliant ? "Sí cumple APA 7" : "No cumple APA 7";
+        const reasons = reference.reasons || [];
+
+        return `<article class="reference">
+  <strong>#${reference.number} - ${escapeHtml(reference.referenceType || reference.citationStyle || "Sin tipo")}</strong>
+  <span class="${statusClass}">${statusText}</span>
+  <pre>${escapeHtml(reference.reference || "")}</pre>
+  ${reasons.length ? `<ul>${reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>` : ""}
+</article>`;
+      }).join("")}`;
+    }
+
+    function renderReportCountSection(title, firstColumnLabel, files, countKey) {
+      const keys = collectCountKeys(files, countKey);
+
+      if (!keys.length) {
+        return `<section><h2>${escapeHtml(title)}</h2><p class="muted">No se detectaron datos para esta tabla.</p></section>`;
+      }
+
+      return `<section>
+  <h2>${escapeHtml(title)}</h2>
+  ${renderReportCountTable(firstColumnLabel, keys, files, countKey)}
+</section>`;
+    }
+
+    function renderReportCountTable(firstColumnLabel, keys, files, countKey) {
+      const bodyRows = keys.map((key) => {
+        let rowTotal = 0;
+        const cells = files.map((file) => {
+          const value = Number((file[countKey] || {})[key] || 0);
+          rowTotal += value;
+          return `<td class="number">${value}</td>`;
+        }).join("");
+
+        return `<tr><th>${escapeHtml(key)}</th>${cells}<td class="number total-cell">${rowTotal}</td></tr>`;
+      }).join("");
+
+      let grandTotal = 0;
+      const totalCells = files.map((file) => {
+        const fileTotal = Object.values(file[countKey] || {})
+          .reduce((sum, value) => sum + Number(value || 0), 0);
+        grandTotal += fileTotal;
+        return `<td class="number">${fileTotal}</td>`;
+      }).join("");
+
+      return `<table>
+  <thead>
+    <tr>
+      <th>${escapeHtml(firstColumnLabel)}</th>
+      ${files.map((file) => `<th class="number">${escapeHtml(file.originalFileName)}</th>`).join("")}
+      <th class="number">Total</th>
+    </tr>
+  </thead>
+  <tbody>${bodyRows}</tbody>
+  <tfoot><tr><th>Total</th>${totalCells}<td class="number">${grandTotal}</td></tr></tfoot>
+</table>`;
     }
 
     function escapeHtml(value) {

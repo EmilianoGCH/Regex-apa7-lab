@@ -225,7 +225,7 @@
         <div class="mini-arrow">v</div>
         <div class="mini-box">Se extrae texto</div>
         <div class="mini-arrow">v</div>
-        <div class="mini-box">Se buscan referencias APA 7</div>
+        <div class="mini-box">Se buscan citas y referencias APA 7</div>
         <div class="mini-arrow">v</div>
         <div class="mini-box">La web muestra resultados</div>
       </div>
@@ -301,10 +301,60 @@
               El objetivo no es entender todo el contenido del articulo, sino identificar donde empieza
               cada referencia para mostrarla como una coincidencia independiente.
             </p>
+            <h3>Tambien busca citas parenteticas fuera de referencias</h3>
+            <p>
+              Antes de analizar la bibliografia, el sistema toma solo el cuerpo del documento: todo lo
+              que aparece antes de la seccion de referencias, referencias bibliograficas, bibliografia
+              o references. En esa parte busca citas entre parentesis como
+              <strong>(Ramirez, 2021)</strong>, <strong>(Chavez R., 2017)</strong> o
+              <strong>(Ramirez &amp; Lopez, 2021)</strong>.
+            </p>
+            <p>
+              Cada PDF regresa su propia lista de citas parenteticas encontradas y cuantas veces
+              aparece cada una. Las citas ubicadas dentro de la bibliografia no se cuentan.
+            </p>
+            <h3>Pseudocodigo: citas parenteticas</h3>
+            <pre class="code-block">funcion buscarCitasParenteticas(texto):
+    cuerpo = tomarTextoAntesDeReferencias(texto)
+
+    si cuerpo esta vacio:
+        regresar lista vacia
+
+    coincidencias = buscar textos entre parentesis que tengan autor y año
+    coincidencias = filtrar casos que tengan coma o punto y coma
+    coincidencias = agrupar por texto de la cita
+
+    regresar cita y cantidad por cada archivo</pre>
+            <h3>Snippet: buscar citas parenteticas</h3>
+            <pre class="code-block">public static IReadOnlyList&lt;ParentheticalCitation&gt; FindParentheticalCitations(string text)
+{
+    var bodyText = ExtractTextBeforeReferenceSection(text);
+
+    if (bodyText.Length == 0)
+    {
+        return [];
+    }
+
+    var matches = Regex.Matches(
+            bodyText,
+            @"\((?&lt;citation&gt;[^()]{2,220}(?:19|20)\d{2}[a-z]?[^()]*)\)")
+        .Cast&lt;Match&gt;()
+        .Select(match =&gt; TextUtilities.NormalizeWhitespace($"({match.Groups["citation"].Value})"))
+        .Where(IsLikelyParentheticalCitation)
+        .ToList();
+
+    return matches
+        .GroupBy(citation =&gt; citation, StringComparer.CurrentCultureIgnoreCase)
+        .Select(group =&gt; new ParentheticalCitation(group.First(), group.Count()))
+        .OrderBy(citation =&gt; citation.Citation, StringComparer.CurrentCultureIgnoreCase)
+        .ToList();
+}</pre>
             <p class="note">
               Explicacion tecnica: esta parte trabaja con texto plano. Primero reduce el problema a una
               sola seccion del documento y luego usa expresiones regulares para detectar donde inicia
-              cada referencia APA 7.
+              cada referencia APA 7. Tambien limpia encabezados como <strong>REFERENCIAS</strong>,
+              <strong>REFERENCIAS BIBLIOGRAFICAS</strong> o <strong>#1REFERENCIAS BIBLIOGRAFICAS</strong>
+              cuando vienen pegados a la primera referencia.
             </p>
             <h3>Pseudocodigo</h3>
             <pre class="code-block">funcion buscarReferenciasApa7(texto):
@@ -315,8 +365,8 @@
 
     referencias = separarReferencias(seccion)
 
-    si no se pudo separar:
-        regresar la seccion completa
+    si no se pudo separar con certeza:
+        regresar bloque con advertencia para revision manual
 
     regresar referencias</pre>
             <h3>Como se ve en el codigo</h3>
@@ -334,7 +384,8 @@
 }</pre>
             <p>
               Dentro de <strong>SplitReferences</strong> se usan patrones para identificar dos tipos de
-              inicio de referencia: autores personales e instituciones.
+              inicio de referencia: autores personales e instituciones. Esto se hace antes de analizar
+              si cumplen APA 7, para evitar evaluar dos referencias pegadas como una sola unidad.
             </p>
             <pre class="code-block">const string datePattern =
     @"\(\s*(?:n\.?\s*d\.?|s\.?\s*f\.?|(?:19|20)\d{2}[a-z]?)";
@@ -348,6 +399,32 @@ const string groupAuthorPattern =
 var startMatches = Regex.Matches(
     text,
     patronAutorPersonalOInstitucional + patronFecha);</pre>
+            <h3>Separacion en texto corrido</h3>
+            <p>
+              Si el texto llega sin saltos de linea, el sistema busca cada aparicion de
+              <strong>Apellido, Inicial. (año)</strong> o <strong>Nombre institucional. (año)</strong>.
+              Cuando encuentra otro inicio valido, corta la referencia anterior antes de analizarla.
+              Si una referencia termina en DOI o URL, la siguiente puede empezar inmediatamente despues.
+            </p>
+            <pre class="code-block">funcion separarReferencias(seccion):
+    texto = normalizarEspacios(seccion)
+    inicios = buscarIniciosAutorMasFecha(texto)
+
+    si no hay inicios:
+        regresar lista vacia
+
+    referencias = lista vacia
+
+    para cada inicio en inicios:
+        fin = siguiente inicio o fin del texto
+        referencia = texto desde inicio hasta fin
+        agregar referencia
+
+    regresar referencias</pre>
+            <p class="note">
+              Si despues de separar una unidad todavia contiene mas de un patron autor-fecha,
+              se marca con la advertencia: <strong>No se pudo delimitar la referencia, verificar manualmente.</strong>
+            </p>
             <h3>Como leer esos regex</h3>
             <p>
               Un regex es una regla para buscar texto. En el codigo real se construye un patron grande
@@ -478,13 +555,14 @@ Pineda-Castillo, K. A.    -> segundo autor personal
           <div>
             <h3>Se cuentan los años citados</h3>
             <p>
-              Una vez separadas las referencias, el sistema revisa cada una y busca el primer año que
-              aparece entre parentesis. Por ejemplo, en <strong>(2021)</strong> toma el año
-              <strong>2021</strong>. Si una referencia tiene letras como <strong>(2021a)</strong>,
-              tambien cuenta el año como <strong>2021</strong>.
+              Una vez separadas y analizadas las referencias, el sistema cuenta años solo en las
+              referencias que cumplen APA 7. En esas referencias busca el primer año que aparece entre
+              parentesis. Por ejemplo, en <strong>(2021)</strong> toma el año <strong>2021</strong>.
+              Si una referencia tiene letras como <strong>(2021a)</strong>, tambien cuenta el año como
+              <strong>2021</strong>.
             </p>
             <p>
-              Luego suma cuantas referencias de cada documento pertenecen a cada año. Con esos conteos
+              Luego suma cuantas referencias APA 7 correctas de cada documento pertenecen a cada año. Con esos conteos
               construye una tabla comparativa: las filas son años y las columnas son los archivos PDF.
             </p>
             <p>
@@ -493,14 +571,17 @@ Pineda-Castillo, K. A.    -> segundo autor personal
               referencias detectadas para ese año.
             </p>
             <p class="note">
-              Explicacion tecnica: el backend regresa un diccionario por archivo. La llave es el año y
-              el valor es cuantas referencias de ese archivo tienen ese año.
+              Explicacion tecnica: el backend primero filtra <strong>IsApa7Compliant</strong>. Despues
+              regresa un diccionario por archivo. La llave es el año y el valor es cuantas referencias
+              APA 7 correctas de ese archivo tienen ese año.
             </p>
             <h3>Pseudocodigo</h3>
             <pre class="code-block">funcion contarAnios(referencias):
     conteo = diccionario vacio
 
-    para cada referencia en referencias:
+    referenciasCorrectas = filtrar referencias donde IsApa7Compliant sea verdadero
+
+    para cada referencia en referenciasCorrectas:
         anio = buscar primer año entre parentesis
 
         si encontro anio:
@@ -550,24 +631,27 @@ Pineda-Castillo, K. A.    -> segundo autor personal
           <div>
             <h3>Se cuentan los primeros autores</h3>
             <p>
-              Ademas del año, el sistema identifica el primer autor de cada referencia. Si la referencia
-              empieza con autor personal, toma el apellido y las iniciales. Si empieza con institucion,
-              toma el nombre institucional antes de la fecha.
+              Ademas del año, el sistema identifica el primer autor solo en referencias que cumplen
+              APA 7. Si la referencia empieza con autor personal, toma el apellido y las iniciales.
+              Si empieza con institucion, toma el nombre institucional antes de la fecha.
             </p>
             <p>
-              Con ese dato construye un conteo por documento: cuantas referencias pertenecen a cada
-              primer autor. Esto ayuda a comparar rapidamente que autores o instituciones aparecen con
-              mas frecuencia en cada PDF.
+              Con ese dato construye un conteo por documento: cuantas referencias APA 7 correctas
+              pertenecen a cada primer autor. Esto ayuda a comparar rapidamente que autores o
+              instituciones aparecen con mas frecuencia en cada PDF.
             </p>
             <p class="note">
               Explicacion tecnica: el backend regresa un diccionario llamado <strong>authorCounts</strong>.
-              La llave es el primer autor y el valor es cuantas referencias empiezan con ese autor.
+              La llave es el primer autor y el valor es cuantas referencias APA 7 correctas empiezan
+              con ese autor.
             </p>
             <h3>Pseudocodigo</h3>
             <pre class="code-block">funcion contarPrimerosAutores(referencias):
     conteo = diccionario vacio
 
-    para cada referencia en referencias:
+    referenciasCorrectas = filtrar referencias donde IsApa7Compliant sea verdadero
+
+    para cada referencia en referenciasCorrectas:
         autor = extraer texto antes de la fecha
 
         si autor tiene formato Apellido, Iniciales:
@@ -878,6 +962,19 @@ return new ReferenceAnalysis(
               las razones del analisis, el conteo de años citados y el conteo de primeros autores.
               Las tablas de conteo incluyen totales por fila, por archivo y un total general.
             </p>
+            <p>
+              Tambien permite exportar un reporte HTML con los resultados finales. Ese reporte incluye
+              el resumen por archivo, las citas parenteticas, las referencias analizadas en APA 7 y
+              las tablas de conteo.
+            </p>
+            <h3>Pseudocodigo: exportar reporte</h3>
+            <pre class="code-block">funcion exportarReporte(resultados):
+    si no hay resultados:
+        no hacer nada
+
+    html = construirDocumentoHtml(resultados)
+    archivo = crearBlobHtml(html)
+    descargar archivo como reporte-apa7-fecha.html</pre>
           </div>
         </article>
       </div>
@@ -903,8 +1000,8 @@ return new ReferenceAnalysis(
         <article class="card">
           <span class="file">Apa7ReferenceService.cs</span>
           <p>
-            Encuentra referencias, detecta estilos, clasifica tipos APA 7, valida reglas,
-            cuenta años citados y cuenta primeros autores.
+            Encuentra citas parenteticas, encuentra referencias, detecta estilos, clasifica tipos APA 7, valida reglas,
+            cuenta años citados y cuenta primeros autores solo en referencias APA 7 correctas.
           </p>
         </article>
 
@@ -930,6 +1027,7 @@ return new ReferenceAnalysis(
         <li>Si el PDF tiene texto, se extrae directamente.</li>
         <li>Si el PDF no tiene texto seleccionable, se informa al usuario.</li>
         <li>Despues se buscan referencias y se detecta si son APA 7 u otro formato.</li>
+        <li>Tambien se listan las citas parenteticas encontradas fuera de la seccion bibliografica.</li>
         <li>Se validan los casos APA 7: articulo, libro, capitulo, actas, reporte institucional, sitio web, tipo no estandar y ambiguo.</li>
         <li>Finalmente se muestran coincidencias, razones, conteo de años, conteo de primeros autores y totales por tabla.</li>
       </ul>

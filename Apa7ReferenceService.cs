@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 public static class Apa7ReferenceService
 {
     private const string DatePattern = @"\(\s*(?:n\.?\s*d\.?|s\.?\s*f\.?|(?:\d{1,2}\s+de\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+\s+de\s+)?(?:19|20)\d{2}[a-z]?)(?:,\s*[^)]{1,40})?\s*\)";
+    private const string BoundaryWarning = "Advertencia: No se pudo delimitar la referencia, verificar manualmente.";
     private const string InitialsPattern = @"(?:[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]{0,2}\.?\s*(?:de\s+|del\s+|de la\s+)?)";
     private const string SurnamePattern = @"[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\-]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\-]+){0,2}";
     private const string PersonAuthorPattern = SurnamePattern + @",\s*(?:" + InitialsPattern + @"){1,4}(?:,\s*&\s*|,\s*|;\s*&?\s*|&\s*|,\s*y\s*|\s+y\s+)?";
@@ -19,6 +20,31 @@ public static class Apa7ReferenceService
 
         var references = SplitReferences(section);
         return references.Count > 0 ? references : [section];
+    }
+
+    public static IReadOnlyList<ParentheticalCitation> FindParentheticalCitations(string text)
+    {
+        var bodyText = ExtractTextBeforeReferenceSection(text);
+
+        if (bodyText.Length == 0)
+        {
+            return [];
+        }
+
+        var matches = Regex.Matches(
+                bodyText,
+                @"\((?<citation>[^()]{2,220}(?:19|20)\d{2}[a-z]?[^()]*)\)",
+                RegexOptions.CultureInvariant)
+            .Cast<Match>()
+            .Select(match => TextUtilities.NormalizeWhitespace($"({match.Groups["citation"].Value})"))
+            .Where(IsLikelyParentheticalCitation)
+            .ToList();
+
+        return matches
+            .GroupBy(citation => citation, StringComparer.CurrentCultureIgnoreCase)
+            .Select(group => new ParentheticalCitation(group.First(), group.Count()))
+            .OrderBy(citation => citation.Citation, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
     }
 
     public static Apa7DocumentAnalysis AnalyzeReferences(IReadOnlyList<string> references)
@@ -163,11 +189,47 @@ public static class Apa7ReferenceService
         return RemoveReferenceSectionTitle(section);
     }
 
+    private static string ExtractTextBeforeReferenceSection(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        var startIndex = -1;
+
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var normalizedLine = TextUtilities.RemoveDiacritics(lines[index]).ToUpperInvariant();
+
+            if (Regex.IsMatch(
+                normalizedLine,
+                @"\b(?:REFERENCIAS(?:\s+BIBLIOGRAFICAS)?|BIBLIOGRAFIA|REFERENCES)\b",
+                RegexOptions.CultureInvariant))
+            {
+                startIndex = index;
+                break;
+            }
+        }
+
+        var bodyLines = startIndex < 0 ? lines : lines.Take(startIndex);
+        var body = string.Join(' ', bodyLines);
+
+        return TextUtilities.NormalizeWhitespace(body);
+    }
+
     private static string RemoveReferenceSectionTitle(string section)
     {
-        return Regex.Replace(
+        var withoutLeadingTitle = Regex.Replace(
             section,
-            @"(?is)^\s*(?:[IVXLCDM]+|\d+)?[\.\)]?\s*(?:referencias\s+bibliogr[aá]ficas|referencias|bibliograf[ií]a|references)\b\s*",
+            @"(?is)^\s*(?:[#\s]*\d+|[IVXLCDM]+)?[\.\)]?\s*(?:referencias\s*bibliogr[aá]ficas|referencias|bibliograf[ií]a|references)\b[:\s\-–—]*",
+            string.Empty,
+            RegexOptions.CultureInvariant);
+
+        return Regex.Replace(
+            withoutLeadingTitle,
+            @"(?is)(?<=[\s#\d\.\)])(?:referencias\s*bibliogr[aá]ficas|referencias|bibliograf[ií]a|references)\b[:\s\-–—]*(?=[A-ZÁÉÍÓÚÑ])",
             string.Empty,
             RegexOptions.CultureInvariant).Trim();
     }
@@ -180,17 +242,8 @@ public static class Apa7ReferenceService
         }
 
         var text = TextUtilities.NormalizeWhitespace(RemoveReferenceSectionTitle(section));
-        var startMatches = Regex.Matches(
-            text,
-            $@"(?<!\p{{L}})(?<entryStart>(?:{PersonAuthorPattern}(?:(?:{PersonAuthorPattern}){{0,19}})|{GroupAuthorPattern}){DatePattern})",
-            RegexOptions.CultureInvariant);
-
-        var starts = startMatches
-            .Cast<Match>()
+        var starts = FindReferenceStartMatches(text)
             .Select(match => match.Index)
-            .Where(index => IsLikelyReferenceStart(text, index))
-            .Distinct()
-            .Order()
             .ToList();
 
         if (starts.Count == 0)
@@ -240,10 +293,38 @@ public static class Apa7ReferenceService
     private static string CleanReference(string reference)
     {
         var normalized = TextUtilities.NormalizeWhitespace(reference);
+        normalized = RemoveReferenceSectionTitle(normalized);
+
         return Regex.Replace(
             normalized,
-            @"^\d+\s+(?=[A-ZÁÉÍÓÚÑ])",
+            @"^[#\s]*\d+[\.\)]?\s*(?=[A-ZÁÉÍÓÚÑ])",
             string.Empty,
+            RegexOptions.CultureInvariant);
+    }
+
+    private static bool IsLikelyParentheticalCitation(string citation)
+    {
+        var inner = citation.Trim().TrimStart('(').TrimEnd(')');
+
+        if (!Regex.IsMatch(inner, @"(?:19|20)\d{2}[a-z]?", RegexOptions.CultureInvariant))
+        {
+            return false;
+        }
+
+        if (!Regex.IsMatch(inner, @"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", RegexOptions.CultureInvariant))
+        {
+            return false;
+        }
+
+        if (!inner.Contains(',', StringComparison.Ordinal) &&
+            !inner.Contains(';', StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return Regex.IsMatch(
+            inner,
+            @"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ&'\-\. ]{1,100}\s*,\s*(?:19|20)\d{2}[a-z]?",
             RegexOptions.CultureInvariant);
     }
 
@@ -321,6 +402,11 @@ public static class Apa7ReferenceService
             reasons.Add("No cumple: usa numeracion por corchetes al inicio.");
         }
 
+        if (HasAmbiguousReferenceBoundary(normalized))
+        {
+            reasons.Add(BoundaryWarning);
+        }
+
         var dateMatch = Regex.Match(normalized, DatePattern, RegexOptions.CultureInvariant);
 
         if (!dateMatch.Success)
@@ -392,7 +478,9 @@ public static class Apa7ReferenceService
         }
 
         var blockingReasons = reasons
-            .Where(reason => reason.StartsWith("No cumple:", StringComparison.Ordinal))
+            .Where(reason =>
+                reason.StartsWith("No cumple:", StringComparison.Ordinal) ||
+                reason.StartsWith("Advertencia:", StringComparison.Ordinal))
             .ToList();
 
         if (blockingReasons.Count == 0)
@@ -452,6 +540,26 @@ public static class Apa7ReferenceService
         var authorText = TextUtilities.NormalizeWhitespace(reference[..dateMatch.Index]);
         return Regex.IsMatch(authorText, $@"^(?:{PersonAuthorPattern})+", RegexOptions.CultureInvariant) ||
             Regex.IsMatch(authorText, $@"^{GroupAuthorPattern}$", RegexOptions.CultureInvariant);
+    }
+
+    private static bool HasAmbiguousReferenceBoundary(string reference)
+    {
+        var startMatches = FindReferenceStartMatches(reference);
+        return startMatches.Count > 1 ||
+            (startMatches.Count <= 1 && Regex.Matches(reference, DatePattern, RegexOptions.CultureInvariant).Count > 1);
+    }
+
+    private static List<Match> FindReferenceStartMatches(string text)
+    {
+        return Regex.Matches(
+                text,
+                $@"(?<!\p{{L}})(?<entryStart>(?:{PersonAuthorPattern}(?:(?:{PersonAuthorPattern}){{0,19}})|{GroupAuthorPattern}){DatePattern})",
+                RegexOptions.CultureInvariant)
+            .Cast<Match>()
+            .Where(match => IsLikelyReferenceStart(text, match.Index))
+            .DistinctBy(match => match.Index)
+            .OrderBy(match => match.Index)
+            .ToList();
     }
 
     private static bool IsIeeeReference(string reference)
@@ -808,7 +916,7 @@ public static class Apa7ReferenceService
     {
         return Regex.IsMatch(
             reference,
-            @"\b(?:Proceedings|Conference|International Conference|Symposium|Congress|Congreso|Conferencia|Simposio|Actas|Memorias)\b",
+            @"\bEn\b.{0,180}\b(?:Proceedings|Conference|International Conference|Symposium|Congress|Congreso|Conferencia|Simposio|Actas|Memorias)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 }

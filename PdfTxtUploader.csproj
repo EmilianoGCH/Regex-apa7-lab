@@ -7,6 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="build-check*/**" />
+    <Content Remove="build-check*/**" />
+    <EmbeddedResource Remove="build-check*/**" />
+    <None Remove="build-check*/**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="UglyToad.PdfPig" Version="1.7.0-custom-5" />
   </ItemGroup>
 

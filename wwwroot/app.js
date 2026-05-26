@@ -95,6 +95,7 @@ function renderResults(files) {
     message.textContent = `${file.message} Caracteres extraidos: ${file.characterCount}.`;
 
     meta.append(message);
+    meta.append(createParentheticalCitationsBlock(file.parentheticalCitations || []));
     meta.append(createApa7AnalysisBlock(file.apa7Analysis));
 
     const bibliography = document.createElement("div");
@@ -136,6 +137,31 @@ function renderResults(files) {
   renderAuthorSummary(files);
 }
 
+function createParentheticalCitationsBlock(citations) {
+  const container = document.createElement("div");
+  container.className = "bibliography";
+
+  const title = document.createElement("h4");
+  title.textContent = `Citas parentéticas fuera de referencias (${citations.length})`;
+  container.append(title);
+
+  if (citations.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "bibliography-empty";
+    empty.textContent = "No se detectaron citas parentéticas en el cuerpo del documento.";
+    container.append(empty);
+    return container;
+  }
+
+  citations.forEach((citation) => {
+    const block = document.createElement("pre");
+    block.textContent = `${citation.citation} - ${citation.count} vez/veces`;
+    container.append(block);
+  });
+
+  return container;
+}
+
 function renderYearSummary(files) {
   const years = Array.from(
     new Set(
@@ -152,7 +178,7 @@ function renderYearSummary(files) {
   summaryHeader.className = "result-summary";
 
   const title = document.createElement("h3");
-  title.textContent = "Años citados";
+  title.textContent = "Años citados en APA 7 correctas";
 
   const count = document.createElement("span");
   count.className = "result-count";
@@ -167,7 +193,7 @@ function renderYearSummary(files) {
   if (years.length === 0) {
     const empty = document.createElement("p");
     empty.className = "empty";
-    empty.textContent = "No se detectaron años en las referencias APA 7.";
+    empty.textContent = "No se detectaron años en referencias APA 7 correctas.";
     body.append(empty);
     summary.append(body);
     resultsList.append(summary);
@@ -335,7 +361,9 @@ function createApa7AnalysisBlock(analysis) {
     reasons.className = "analysis-reasons";
     reference.reasons.forEach((reason) => {
       const reasonItem = document.createElement("li");
-      reasonItem.textContent = reason;
+      reasonItem.textContent = reason.startsWith("No cumple") || reason.startsWith("Advertencia")
+        ? `⚠️ ${reason}`
+        : reason;
       reasons.append(reasonItem);
     });
 
@@ -384,7 +412,7 @@ function renderAuthorSummary(files) {
   summaryHeader.className = "result-summary";
 
   const title = document.createElement("h3");
-  title.textContent = "Primer autor";
+  title.textContent = "Primeros autores en APA 7 correctas";
 
   const count = document.createElement("span");
   count.className = "result-count";
@@ -399,7 +427,7 @@ function renderAuthorSummary(files) {
   if (authors.length === 0) {
     const empty = document.createElement("p");
     empty.className = "empty";
-    empty.textContent = "No se detectaron primeros autores en las referencias APA 7.";
+    empty.textContent = "No se detectaron primeros autores en referencias APA 7 correctas.";
     body.append(empty);
     summary.append(body);
     resultsList.append(summary);

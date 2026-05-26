@@ -84,6 +84,7 @@ static async Task<PdfConversionResult> ConvertPdfAsync(
                 null,
                 0,
                 [],
+                [],
                 new SortedDictionary<int, int>(),
                 new SortedDictionary<string, int>(),
                 new Apa7DocumentAnalysis(0, 0, 0, 0, []),
@@ -93,7 +94,13 @@ static async Task<PdfConversionResult> ConvertPdfAsync(
         await File.WriteAllTextAsync(outputPath, text, Encoding.UTF8);
 
         var references = Apa7ReferenceService.FindReferences(text);
+        var parentheticalCitations = Apa7ReferenceService.FindParentheticalCitations(text);
         var apa7Analysis = Apa7ReferenceService.AnalyzeReferences(references);
+        var compliantReferences = apa7Analysis.References
+            .Where(reference => reference.IsApa7Compliant)
+            .Select(reference => reference.Reference)
+            .ToList();
+
         Apa7ReferenceService.WriteToTerminal(file.FileName, references);
 
         return new PdfConversionResult(
@@ -102,8 +109,9 @@ static async Task<PdfConversionResult> ConvertPdfAsync(
             $"/api/pdf/download/{Uri.EscapeDataString(uniqueOutputFileName)}",
             characterCount,
             references,
-            Apa7ReferenceService.CountYears(references),
-            Apa7ReferenceService.CountFirstAuthors(references),
+            parentheticalCitations,
+            Apa7ReferenceService.CountYears(compliantReferences),
+            Apa7ReferenceService.CountFirstAuthors(compliantReferences),
             apa7Analysis,
             "Convertido correctamente");
     }
@@ -114,6 +122,7 @@ static async Task<PdfConversionResult> ConvertPdfAsync(
             null,
             null,
             0,
+            [],
             [],
             new SortedDictionary<int, int>(),
             new SortedDictionary<string, int>(),
