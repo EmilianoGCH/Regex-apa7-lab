@@ -301,51 +301,62 @@
               El objetivo no es entender todo el contenido del articulo, sino identificar donde empieza
               cada referencia para mostrarla como una coincidencia independiente.
             </p>
-            <h3>Tambien busca citas parenteticas fuera de referencias</h3>
+            <h3>Tambien busca citas en el texto por primer autor</h3>
             <p>
               Antes de analizar la bibliografia, el sistema toma solo el cuerpo del documento: todo lo
               que aparece antes de la seccion de referencias, referencias bibliograficas, bibliografia
-              o references. En esa parte busca citas entre parentesis como
-              <strong>(Ramirez, 2021)</strong>, <strong>(Chavez R., 2017)</strong> o
-              <strong>(Ramirez &amp; Lopez, 2021)</strong>.
+              o references. En esa parte busca menciones del primer autor de cada referencia que si
+              cumple APA 7. Por ejemplo, si una referencia correcta empieza con
+              <strong>Ramirez, J. (2021)</strong>, el sistema cuenta apariciones de
+              <strong>Ramirez</strong> en el cuerpo del documento, aunque no esten entre parentesis.
             </p>
             <p>
-              Cada PDF regresa su propia lista de citas parenteticas encontradas y cuantas veces
-              aparece cada una. Las citas ubicadas dentro de la bibliografia no se cuentan.
+              Cada PDF regresa su propia lista de autores encontrados, cuantas veces aparece cada uno
+              y en que paginas aparece. Las menciones ubicadas dentro de la bibliografia no se cuentan.
             </p>
-            <h3>Pseudocodigo: citas parenteticas</h3>
-            <pre class="code-block">funcion buscarCitasParenteticas(texto):
-    cuerpo = tomarTextoAntesDeReferencias(texto)
+            <h3>Pseudocodigo: citas por primer autor</h3>
+            <pre class="code-block">funcion buscarCitasPorPrimerAutor(texto, referenciasApa7Correctas):
+    paginas = tomarPaginasAntesDeReferencias(texto)
+    primerosAutores = extraer primer autor de cada referencia APA 7 correcta
 
-    si cuerpo esta vacio:
+    si paginas esta vacia o no hay primeros autores:
         regresar lista vacia
 
-    coincidencias = buscar textos entre parentesis que tengan autor y año
-    coincidencias = filtrar casos que tengan coma o punto y coma
-    coincidencias = agrupar por texto de la cita
+    coincidencias = lista vacia
 
-    regresar cita y cantidad por cada archivo</pre>
-            <h3>Snippet: buscar citas parenteticas</h3>
-            <pre class="code-block">public static IReadOnlyList&lt;ParentheticalCitation&gt; FindParentheticalCitations(string text)
+    por cada pagina:
+        por cada primer autor:
+            apariciones = buscar primer autor en texto de pagina
+            guardar autor y numero de pagina por cada aparicion
+
+    coincidencias = agrupar por autor y juntar paginas
+
+    regresar autor, cantidad y paginas por cada archivo</pre>
+            <h3>Snippet: buscar citas por primer autor</h3>
+            <pre class="code-block">public static IReadOnlyList&lt;ParentheticalCitation&gt; FindTextCitationsByFirstAuthor(
+    string text,
+    IEnumerable&lt;string&gt; compliantReferences)
 {
-    var bodyText = ExtractTextBeforeReferenceSection(text);
+    var bodyPages = ExtractBodyPagesBeforeReferenceSection(text);
+    var firstAuthors = compliantReferences
+        .Select(ExtractFirstAuthorSearchTerm)
+        .Where(author =&gt; author.Length &gt; 0)
+        .Distinct(StringComparer.CurrentCultureIgnoreCase)
+        .ToList();
 
-    if (bodyText.Length == 0)
+    if (bodyPages.Count == 0 || firstAuthors.Count == 0)
     {
         return [];
     }
 
-    var matches = Regex.Matches(
-            bodyText,
-            @"\((?&lt;citation&gt;[^()]{2,220}(?:19|20)\d{2}[a-z]?[^()]*)\)")
-        .Cast&lt;Match&gt;()
-        .Select(match =&gt; TextUtilities.NormalizeWhitespace($"({match.Groups["citation"].Value})"))
-        .Where(IsLikelyParentheticalCitation)
-        .ToList();
+    var citations = buscarCadaPrimerAutorEnCadaPagina(bodyPages, firstAuthors);
 
-    return matches
-        .GroupBy(citation =&gt; citation, StringComparer.CurrentCultureIgnoreCase)
-        .Select(group =&gt; new ParentheticalCitation(group.First(), group.Count()))
+    return citations
+        .GroupBy(match =&gt; match.Citation, StringComparer.CurrentCultureIgnoreCase)
+        .Select(group =&gt; new ParentheticalCitation(
+            group.First().Citation,
+            group.Count(),
+            group.Select(match =&gt; match.PageNumber).Distinct().Order().ToList()))
         .OrderBy(citation =&gt; citation.Citation, StringComparer.CurrentCultureIgnoreCase)
         .ToList();
 }</pre>
@@ -691,6 +702,41 @@ Pineda-Castillo, K. A.    -> segundo autor personal
         <article class="step">
           <span class="number">8</span>
           <div>
+            <h3>Se cuenta editorial o revista</h3>
+            <p>
+              El sistema crea una tabla de fuentes solo con referencias que cumplen APA 7. En libros,
+              capitulos y reportes toma la editorial o institucion editora. En articulos de revista,
+              el nombre de la revista se usa como equivalente de editorial para el conteo.
+            </p>
+            <p>
+              Si no se puede extraer una editorial, revista o fuente clara, la referencia se cuenta
+              dentro de la categoria <strong>No Identificado</strong>.
+            </p>
+            <h3>Pseudocodigo</h3>
+            <pre class="code-block">funcion contarEditorialORevista(referenciasAnalizadas):
+    conteo = diccionario vacio
+
+    referenciasCorrectas = filtrar referencias donde IsApa7Compliant sea verdadero
+
+    para cada referencia en referenciasCorrectas:
+        si es articulo:
+            fuente = extraer nombre de revista
+        si es libro, capitulo o reporte:
+            fuente = extraer editorial o institucion
+        si no se pudo extraer:
+            fuente = "No Identificado"
+
+        conteo[fuente] = conteo[fuente] + 1
+
+    regresar conteo ordenado por fuente</pre>
+          </div>
+        </article>
+
+        <div class="arrow">v</div>
+
+        <article class="step">
+          <span class="number">9</span>
+          <div>
             <h3>Se clasifican y validan los casos de referencias</h3>
             <p>
               Despues de separar las referencias, el sistema revisa si cada una parece APA 7 o si
@@ -954,17 +1000,18 @@ return new ReferenceAnalysis(
         <div class="arrow">v</div>
 
         <article class="step">
-          <span class="number">9</span>
+          <span class="number">10</span>
           <div>
             <h3>La web muestra el resultado</h3>
             <p>
               El frontend muestra cada archivo, las referencias detectadas, si cumplen o no APA 7,
               las razones del analisis, el conteo de años citados y el conteo de primeros autores.
-              Las tablas de conteo incluyen totales por fila, por archivo y un total general.
+              Tambien muestra el conteo de editorial o revista. Las tablas de conteo incluyen totales
+              por fila, por archivo y un total general.
             </p>
             <p>
               Tambien permite exportar un reporte HTML con los resultados finales. Ese reporte incluye
-              el resumen por archivo, las citas parenteticas, las referencias analizadas en APA 7 y
+              el resumen por archivo, las citas por primer autor, las referencias analizadas en APA 7 y
               las tablas de conteo.
             </p>
             <h3>Pseudocodigo: exportar reporte</h3>
@@ -1000,7 +1047,7 @@ return new ReferenceAnalysis(
         <article class="card">
           <span class="file">Apa7ReferenceService.cs</span>
           <p>
-            Encuentra citas parenteticas, encuentra referencias, detecta estilos, clasifica tipos APA 7, valida reglas,
+            Encuentra citas por primer autor, encuentra referencias, detecta estilos, clasifica tipos APA 7, valida reglas,
             cuenta años citados y cuenta primeros autores solo en referencias APA 7 correctas.
           </p>
         </article>
@@ -1027,7 +1074,7 @@ return new ReferenceAnalysis(
         <li>Si el PDF tiene texto, se extrae directamente.</li>
         <li>Si el PDF no tiene texto seleccionable, se informa al usuario.</li>
         <li>Despues se buscan referencias y se detecta si son APA 7 u otro formato.</li>
-        <li>Tambien se listan las citas parenteticas encontradas fuera de la seccion bibliografica.</li>
+        <li>Tambien se listan las citas por primer autor encontradas fuera de la seccion bibliografica.</li>
         <li>Se validan los casos APA 7: articulo, libro, capitulo, actas, reporte institucional, sitio web, tipo no estandar y ambiguo.</li>
         <li>Finalmente se muestran coincidencias, razones, conteo de años, conteo de primeros autores y totales por tabla.</li>
       </ul>

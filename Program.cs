@@ -85,21 +85,26 @@ static async Task<PdfConversionResult> ConvertPdfAsync(
                 0,
                 [],
                 [],
+                [],
                 new SortedDictionary<int, int>(),
                 new SortedDictionary<string, int>(),
-                new Apa7DocumentAnalysis(0, 0, 0, 0, []),
+                new SortedDictionary<string, int>(),
+                new Apa7DocumentAnalysis(0, 0, 0, 0, 0, 0, []),
                 noSelectableTextMessage);
         }
 
         await File.WriteAllTextAsync(outputPath, text, Encoding.UTF8);
 
         var references = Apa7ReferenceService.FindReferences(text);
-        var parentheticalCitations = Apa7ReferenceService.FindParentheticalCitations(text);
         var apa7Analysis = Apa7ReferenceService.AnalyzeReferences(references);
-        var compliantReferences = apa7Analysis.References
+        var compliantReferenceAnalyses = apa7Analysis.References
             .Where(reference => reference.IsApa7Compliant)
+            .ToList();
+        var compliantReferences = compliantReferenceAnalyses
             .Select(reference => reference.Reference)
             .ToList();
+        var parentheticalCitations = Apa7ReferenceService.FindTextCitationsByFirstAuthor(text, compliantReferences);
+        var narrativeCitations = Apa7ReferenceService.FindNarrativeCitationsByFirstAuthor(text, compliantReferences);
 
         Apa7ReferenceService.WriteToTerminal(file.FileName, references);
 
@@ -110,8 +115,10 @@ static async Task<PdfConversionResult> ConvertPdfAsync(
             characterCount,
             references,
             parentheticalCitations,
+            narrativeCitations,
             Apa7ReferenceService.CountYears(compliantReferences),
             Apa7ReferenceService.CountFirstAuthors(compliantReferences),
+            Apa7ReferenceService.CountPublishers(compliantReferenceAnalyses),
             apa7Analysis,
             "Convertido correctamente");
     }
@@ -124,9 +131,11 @@ static async Task<PdfConversionResult> ConvertPdfAsync(
             0,
             [],
             [],
+            [],
             new SortedDictionary<int, int>(),
             new SortedDictionary<string, int>(),
-            new Apa7DocumentAnalysis(0, 0, 0, 0, []),
+            new SortedDictionary<string, int>(),
+            new Apa7DocumentAnalysis(0, 0, 0, 0, 0, 0, []),
             $"No se pudo convertir: {ex.Message}");
     }
     finally

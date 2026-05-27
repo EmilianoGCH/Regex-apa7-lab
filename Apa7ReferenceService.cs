@@ -1,13 +1,17 @@
+using System.Net;
 using System.Text.RegularExpressions;
 
 public static class Apa7ReferenceService
 {
     private const string DatePattern = @"\(\s*(?:n\.?\s*d\.?|s\.?\s*f\.?|(?:\d{1,2}\s+de\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+\s+de\s+)?(?:19|20)\d{2}[a-z]?)(?:,\s*[^)]{1,40})?\s*\)";
     private const string BoundaryWarning = "Advertencia: No se pudo delimitar la referencia, verificar manualmente.";
+    private const string RemovedPageHeaderWarningPrefix = "Advertencia: Se detectó y eliminó encabezado/pie de página incrustado:";
+    private const string MixedFormatsWarning = "Advertencia: Bloque con formatos mixtos detectado — se separaron y clasificaron individualmente.";
     private const string InitialsPattern = @"(?:[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]{0,2}\.?\s*(?:de\s+|del\s+|de la\s+)?)";
     private const string SurnamePattern = @"[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\-]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\-]+){0,2}";
     private const string PersonAuthorPattern = SurnamePattern + @",\s*(?:" + InitialsPattern + @"){1,4}(?:,\s*&\s*|,\s*|;\s*&?\s*|&\s*|,\s*y\s*|\s+y\s+)?";
     private const string GroupAuthorPattern = @"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9&'\-]{2,}(?:\s+(?:de|del|la|las|los|el|en|y|e|of|the|and|for|[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9&'\-]{2,})){0,14}\.\s*(?:\([^)]{2,40}\)\.\s*)?";
+    private const string IeeeReferenceStartPattern = SurnamePattern + @",\s*(?:" + InitialsPattern + @"){1,4}(?:,\s+|:\s+)";
 
     public static List<string> FindReferences(string text)
     {
@@ -24,40 +28,169 @@ public static class Apa7ReferenceService
 
     public static IReadOnlyList<ParentheticalCitation> FindParentheticalCitations(string text)
     {
-        var bodyText = ExtractTextBeforeReferenceSection(text);
+        var bodyPages = ExtractBodyPagesBeforeReferenceSection(text);
 
-        if (bodyText.Length == 0)
+        if (bodyPages.Count == 0)
         {
             return [];
         }
 
-        var matches = Regex.Matches(
-                bodyText,
-                @"\((?<citation>[^()]{2,220}(?:19|20)\d{2}[a-z]?[^()]*)\)",
-                RegexOptions.CultureInvariant)
-            .Cast<Match>()
-            .Select(match => TextUtilities.NormalizeWhitespace($"({match.Groups["citation"].Value})"))
-            .Where(IsLikelyParentheticalCitation)
+        var matches = bodyPages
+            .SelectMany(page => Regex.Matches(
+                    page.Text,
+                    @"\((?<citation>[^()]{2,220}(?:19|20)\d{2}[a-z]?[^()]*)\)",
+                    RegexOptions.CultureInvariant)
+                .Cast<Match>()
+                .Select(match => new CitationMatch(
+                    TextUtilities.NormalizeWhitespace($"({match.Groups["citation"].Value})"),
+                    page.PageNumber)))
+            .Where(match => IsLikelyParentheticalCitation(match.Citation))
             .ToList();
 
         return matches
-            .GroupBy(citation => citation, StringComparer.CurrentCultureIgnoreCase)
-            .Select(group => new ParentheticalCitation(group.First(), group.Count()))
+            .GroupBy(match => match.Citation, StringComparer.CurrentCultureIgnoreCase)
+            .Select(group => new ParentheticalCitation(
+                group.First().Citation,
+                group.Count(),
+                group.Select(match => match.PageNumber).Distinct().Order().ToList()))
+            .OrderBy(citation => citation.Citation, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+    }
+
+    public static IReadOnlyList<ParentheticalCitation> FindTextCitationsByFirstAuthor(
+        string text,
+        IEnumerable<string> compliantReferences)
+    {
+        var bodyPages = ExtractBodyPagesBeforeReferenceSection(text);
+
+        if (bodyPages.Count == 0)
+        {
+            return [];
+        }
+
+        var firstAuthors = compliantReferences
+            .Select(ExtractFirstAuthorSearchTerm)
+            .Where(author => author.Length > 0)
+            .Distinct(StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        if (firstAuthors.Count == 0)
+        {
+            return [];
+        }
+
+        var citations = new List<CitationMatch>();
+
+        foreach (var author in firstAuthors)
+        {
+            var normalizedAuthor = TextUtilities.RemoveDiacritics(author);
+            var pattern = BuildWholeTextPattern(normalizedAuthor);
+
+            foreach (var page in bodyPages)
+            {
+                var normalizedText = TextUtilities.RemoveDiacritics(page.Text);
+                var count = Regex.Matches(
+                    normalizedText,
+                    pattern,
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Count;
+
+                for (var index = 0; index < count; index++)
+                {
+                    citations.Add(new CitationMatch(author, page.PageNumber));
+                }
+            }
+        }
+
+        return citations
+            .GroupBy(citation => citation.Citation, StringComparer.CurrentCultureIgnoreCase)
+            .Select(group => new ParentheticalCitation(
+                group.First().Citation,
+                group.Count(),
+                group.Select(match => match.PageNumber).Distinct().Order().ToList()))
+            .OrderBy(citation => citation.Citation, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+    }
+
+    public static IReadOnlyList<ParentheticalCitation> FindNarrativeCitationsByFirstAuthor(
+        string text,
+        IEnumerable<string> compliantReferences)
+    {
+        var bodyPages = ExtractBodyPagesBeforeReferenceSection(text);
+
+        if (bodyPages.Count == 0)
+        {
+            return [];
+        }
+
+        var firstAuthorYears = compliantReferences
+            .Select(reference => new
+            {
+                Author = ExtractFirstAuthorSearchTerm(reference),
+                Year = ExtractReferenceYear(reference)
+            })
+            .Where(item => item.Author.Length > 0 && item.Year.Length > 0)
+            .DistinctBy(item => $"{item.Author}|{item.Year}", StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        if (firstAuthorYears.Count == 0)
+        {
+            return [];
+        }
+
+        var citations = new List<CitationMatch>();
+
+        foreach (var item in firstAuthorYears)
+        {
+            var normalizedAuthor = TextUtilities.RemoveDiacritics(item.Author);
+            var authorPattern = BuildWholeTextPattern(normalizedAuthor);
+            var narrativePattern =
+                $@"(?<!\(){authorPattern}(?:\s+(?:et\s+al\.?|y\s+cols?\.?|y\s+colaboradores|y\s+otros|and\s+others|&\s+[^()]{1,60}))?\s*\(\s*{Regex.Escape(item.Year)}[a-z]?\s*\)";
+
+            foreach (var page in bodyPages)
+            {
+                var normalizedText = TextUtilities.RemoveDiacritics(page.Text);
+                var count = Regex.Matches(
+                    normalizedText,
+                    narrativePattern,
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Count;
+
+                for (var index = 0; index < count; index++)
+                {
+                    citations.Add(new CitationMatch(item.Author, page.PageNumber));
+                }
+            }
+        }
+
+        return citations
+            .GroupBy(citation => citation.Citation, StringComparer.CurrentCultureIgnoreCase)
+            .Select(group => new ParentheticalCitation(
+                group.First().Citation,
+                group.Count(),
+                group.Select(match => match.PageNumber).Distinct().Order().ToList()))
             .OrderBy(citation => citation.Citation, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
     }
 
     public static Apa7DocumentAnalysis AnalyzeReferences(IReadOnlyList<string> references)
     {
+        var detectedStyles = references
+            .Select(reference => DetectCitationStyle(RemoveEmbeddedHeaderFooterNoise(
+                TextUtilities.NormalizeWhitespace(reference)).CleanedReference))
+            .Distinct(StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+        var hasMixedFormatBlock = detectedStyles.Count > 1;
+
         var analyzedReferences = references
-            .Select((reference, index) => AnalyzeReference(index + 1, reference))
+            .Select((reference, index) => AnalyzeReference(index + 1, reference, hasMixedFormatBlock))
             .ToList();
 
         return new Apa7DocumentAnalysis(
             analyzedReferences.Count,
             analyzedReferences.Count(reference => reference.IsApa7Compliant),
             analyzedReferences.Count(reference => reference.AnalysisStatus == "Apa7WithErrors"),
+            analyzedReferences.Count(reference => reference.AnalysisStatus == "Apa7Invalid"),
             analyzedReferences.Count(reference => reference.AnalysisStatus == "OtherFormat"),
+            analyzedReferences.Count(reference => reference.Reasons.Any(reason => reason.Contains("delimitar", StringComparison.OrdinalIgnoreCase))),
             analyzedReferences);
     }
 
@@ -99,6 +232,22 @@ public static class Apa7ReferenceService
             }
 
             counts[firstAuthor] = counts.TryGetValue(firstAuthor, out var currentCount)
+                ? currentCount + 1
+                : 1;
+        }
+
+        return counts;
+    }
+
+    public static SortedDictionary<string, int> CountPublishers(IEnumerable<ReferenceAnalysis> references)
+    {
+        var counts = new SortedDictionary<string, int>(StringComparer.CurrentCultureIgnoreCase);
+
+        foreach (var reference in references)
+        {
+            var publisher = ExtractPublisherOrSource(reference);
+
+            counts[publisher] = counts.TryGetValue(publisher, out var currentCount)
                 ? currentCount + 1
                 : 1;
         }
@@ -153,15 +302,14 @@ public static class Apa7ReferenceService
             return string.Empty;
         }
 
+        var repeatedInstitutionHeaders = FindRepeatedInstitutionHeaderLines(lines.Skip(startIndex));
         var sectionLines = new List<string>();
 
         for (var index = startIndex; index < lines.Length; index++)
         {
             var line = lines[index].Trim();
 
-            if (line.Length == 0 ||
-                Regex.IsMatch(line, @"^---\s*Pagina\s+\d+\s*---$", RegexOptions.CultureInvariant) ||
-                Regex.IsMatch(line, @"^\d+$", RegexOptions.CultureInvariant))
+            if (line.Length == 0 || IsStandaloneHeaderFooterNoiseLine(line, repeatedInstitutionHeaders))
             {
                 continue;
             }
@@ -219,6 +367,155 @@ public static class Apa7ReferenceService
         return TextUtilities.NormalizeWhitespace(body);
     }
 
+    private static List<BodyPageText> ExtractBodyPagesBeforeReferenceSection(string text)
+    {
+        var pages = new List<BodyPageText>();
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return pages;
+        }
+
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        var currentPage = 1;
+        var pageText = new List<string>();
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.Trim();
+            var pageMatch = Regex.Match(
+                line,
+                @"^---\s*Pagina\s+(?<page>\d+)\s*---$",
+                RegexOptions.CultureInvariant);
+
+            if (pageMatch.Success)
+            {
+                AddBodyPage(pages, currentPage, pageText);
+                currentPage = int.Parse(pageMatch.Groups["page"].Value);
+                continue;
+            }
+
+            var normalizedLine = TextUtilities.RemoveDiacritics(line).ToUpperInvariant();
+
+            if (Regex.IsMatch(
+                normalizedLine,
+                @"\b(?:REFERENCIAS(?:\s+BIBLIOGRAFICAS)?|BIBLIOGRAFIA|REFERENCES)\b",
+                RegexOptions.CultureInvariant))
+            {
+                AddBodyPage(pages, currentPage, pageText);
+                break;
+            }
+
+            pageText.Add(line);
+        }
+
+        AddBodyPage(pages, currentPage, pageText);
+        return pages;
+    }
+
+    private static void AddBodyPage(List<BodyPageText> pages, int pageNumber, List<string> pageText)
+    {
+        var normalizedText = TextUtilities.NormalizeWhitespace(string.Join(' ', pageText));
+        pageText.Clear();
+
+        if (normalizedText.Length > 0)
+        {
+            pages.Add(new BodyPageText(pageNumber, normalizedText));
+        }
+    }
+
+    private static HashSet<string> FindRepeatedInstitutionHeaderLines(IEnumerable<string> lines)
+    {
+        return lines
+            .Select(CanonicalHeaderFooterLine)
+            .Where(line => IsLikelyInstitutionHeaderLine(line))
+            .GroupBy(line => line, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool IsStandaloneHeaderFooterNoiseLine(
+        string line,
+        IReadOnlySet<string> repeatedInstitutionHeaders)
+    {
+        var trimmed = TextUtilities.NormalizeWhitespace(line).Trim();
+
+        if (trimmed.Length == 0)
+        {
+            return true;
+        }
+
+        if (Regex.IsMatch(trimmed, @"^---\s*Pagina\s+\d+\s*---$", RegexOptions.CultureInvariant))
+        {
+            return true;
+        }
+
+        if (Regex.IsMatch(trimmed, @"^\d{1,4}$", RegexOptions.CultureInvariant))
+        {
+            return true;
+        }
+
+        if (Regex.IsMatch(
+            trimmed,
+            @"^(?:Page\s+\d+\s+of\s+\d+|P[aá]gina\s+\d+\s+(?:de|/)\s+\d+)$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            return true;
+        }
+
+        if (IsHeaderFooterNoiseFragment(trimmed))
+        {
+            return true;
+        }
+
+        var canonicalLine = CanonicalHeaderFooterLine(trimmed);
+        return repeatedInstitutionHeaders.Contains(canonicalLine);
+    }
+
+    private static string CanonicalHeaderFooterLine(string line)
+    {
+        return TextUtilities.RemoveDiacritics(TextUtilities.NormalizeWhitespace(line))
+            .Trim()
+            .Trim('.', ':', '-', '–', '—')
+            .ToUpperInvariant();
+    }
+
+    private static bool IsLikelyInstitutionHeaderLine(string canonicalLine)
+    {
+        if (canonicalLine.Length is < 8 or > 130)
+        {
+            return false;
+        }
+
+        if (Regex.IsMatch(canonicalLine, DatePattern, RegexOptions.CultureInvariant))
+        {
+            return false;
+        }
+
+        return Regex.IsMatch(
+            canonicalLine,
+            @"\b(?:UNIVERSIDAD|INSTITUTO|TECNOLOGICO|FACULTAD|ESCUELA|DEPARTAMENTO|CENTRO\s+UNIVERSITARIO|SECRETARIA|MINISTERIO)\b",
+            RegexOptions.CultureInvariant);
+    }
+
+    private static bool IsHeaderFooterNoiseFragment(string text)
+    {
+        return Regex.IsMatch(
+            text,
+            @"^(?:" +
+            @"(?:F|FOR)-[A-Z0-9]{2,}(?:-[A-Z0-9]{2,})*" +
+            @"|PROTOCOLO\s+DE\s+INVESTIGACI[ÓO]N" +
+            @"|TRABAJO\s+DE\s+GRADO" +
+            @"|TESIS" +
+            @"|TRABAJO\s+TERMINAL" +
+            @"|Nivel\s+de\s+revisi[oó]n\s*:\s*\d+" +
+            @"|(?:Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Setiembre|Octubre|Noviembre|Diciembre|January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:19|20)\d{2}" +
+            @"|(?:19|20)\d{2}-\d{2}(?:-\d{2})?" +
+            @")$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    }
+
     private static string RemoveReferenceSectionTitle(string section)
     {
         var withoutLeadingTitle = Regex.Replace(
@@ -241,9 +538,10 @@ public static class Apa7ReferenceService
             return [];
         }
 
-        var text = TextUtilities.NormalizeWhitespace(RemoveReferenceSectionTitle(section));
-        var starts = FindReferenceStartMatches(text)
-            .Select(match => match.Index)
+        var text = RemoveIeeeInterReferencePageNumbers(
+            TextUtilities.NormalizeWhitespace(RemoveReferenceSectionTitle(section)));
+
+        var starts = FindAllReferenceStartIndexes(text)
             .ToList();
 
         if (starts.Count == 0)
@@ -266,6 +564,20 @@ public static class Apa7ReferenceService
         }
 
         return references;
+    }
+
+    private static List<int> FindAllReferenceStartIndexes(string text)
+    {
+        var apaStarts = FindReferenceStartMatches(text)
+            .Select(match => match.Index);
+        var ieeeStarts = FindIeeeReferenceStartMatches(text)
+            .Select(match => match.Index);
+
+        return apaStarts
+            .Concat(ieeeStarts)
+            .Distinct()
+            .Order()
+            .ToList();
     }
 
     private static bool IsLikelyReferenceStart(string text, int startIndex)
@@ -300,6 +612,86 @@ public static class Apa7ReferenceService
             @"^[#\s]*\d+[\.\)]?\s*(?=[A-ZÁÉÍÓÚÑ])",
             string.Empty,
             RegexOptions.CultureInvariant);
+    }
+
+    private static string RemoveIeeeInterReferencePageNumbers(string text)
+    {
+        return Regex.Replace(
+            text,
+            $@"(?<yearEnd>\(\s*(?:19|20)\d{{2}}[a-z]?\s*\)\.?)\s+\d{{1,4}}\s+(?={IeeeReferenceStartPattern})",
+            match => $"{match.Groups["yearEnd"].Value} ",
+            RegexOptions.CultureInvariant);
+    }
+
+    private static List<Match> FindIeeeReferenceStartMatches(string text)
+    {
+        return Regex.Matches(
+                text,
+                $@"(?<!\p{{L}})(?<entryStart>{IeeeReferenceStartPattern})",
+                RegexOptions.CultureInvariant)
+            .Cast<Match>()
+            .Where(match => IsLikelyIeeeReferenceStart(text, match.Index))
+            .DistinctBy(match => match.Index)
+            .OrderBy(match => match.Index)
+            .ToList();
+    }
+
+    private static bool IsLikelyIeeeReferenceStart(string text, int startIndex)
+    {
+        if (startIndex == 0)
+        {
+            return true;
+        }
+
+        var before = text[Math.Max(0, startIndex - 40)..startIndex];
+        return Regex.IsMatch(
+            before,
+            @"\(\s*(?:19|20)\d{2}[a-z]?\s*\)\.?\s+(?:\d{1,4}\s+)?$",
+            RegexOptions.CultureInvariant);
+    }
+
+    private static HeaderFooterNoiseRemoval RemoveEmbeddedHeaderFooterNoise(string reference)
+    {
+        var removedFragments = new List<string>();
+        var cleaned = reference;
+
+        var patterns = new[]
+        {
+            @"\b(?:F|FOR)-[A-Z0-9]{2,}(?:-[A-Z0-9]{2,})*\b",
+            @"\bPROTOCOLO\s+DE\s+INVESTIGACI[ÓO]N\b",
+            @"\bTRABAJO\s+DE\s+GRADO\b",
+            @"\bTESIS\b",
+            @"\bTRABAJO\s+TERMINAL\b",
+            @"\bNivel\s+de\s+revisi[oó]n\s*:\s*\d+\b",
+            @"\bPage\s+\d+\s+of\s+\d+\b",
+            @"\bP[aá]gina\s+\d+\s+(?:de|/)\s+\d+\b",
+            @"\b(?:Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Setiembre|Octubre|Noviembre|Diciembre|January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:19|20)\d{2}\b",
+            @"\b(?:19|20)\d{2}-\d{2}(?:-\d{2})?\b"
+        };
+
+        foreach (var pattern in patterns)
+        {
+            cleaned = Regex.Replace(
+                cleaned,
+                pattern,
+                match =>
+                {
+                    var fragment = TextUtilities.NormalizeWhitespace(match.Value).Trim();
+
+                    if (fragment.Length > 0 &&
+                        !removedFragments.Contains(fragment, StringComparer.CurrentCultureIgnoreCase))
+                    {
+                        removedFragments.Add(fragment);
+                    }
+
+                    return " ";
+                },
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        }
+
+        return new HeaderFooterNoiseRemoval(
+            TextUtilities.NormalizeWhitespace(cleaned),
+            removedFragments);
     }
 
     private static bool IsLikelyParentheticalCitation(string citation)
@@ -362,24 +754,235 @@ public static class Apa7ReferenceService
         return groupAuthor;
     }
 
-    private static ReferenceAnalysis AnalyzeReference(int number, string reference)
+    private static string ExtractFirstAuthorSearchTerm(string reference)
     {
-        var normalized = TextUtilities.NormalizeWhitespace(reference);
+        var firstAuthor = ExtractFirstAuthor(reference);
+
+        if (firstAuthor.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var commaIndex = firstAuthor.IndexOf(',', StringComparison.Ordinal);
+        return commaIndex >= 0
+            ? TextUtilities.NormalizeWhitespace(firstAuthor[..commaIndex]).TrimEnd('.')
+            : firstAuthor;
+    }
+
+    private static string ExtractReferenceYear(string reference)
+    {
+        var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
+
+        if (!dateMatch.Success)
+        {
+            return string.Empty;
+        }
+
+        var yearMatch = Regex.Match(
+            dateMatch.Value,
+            @"(?:19|20)\d{2}",
+            RegexOptions.CultureInvariant);
+
+        return yearMatch.Success ? yearMatch.Value : string.Empty;
+    }
+
+    private static string BuildWholeTextPattern(string text)
+    {
+        var escapedWords = TextUtilities.NormalizeWhitespace(text)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(Regex.Escape);
+
+        return $@"(?<![\p{{L}}\p{{N}}]){string.Join(@"\s+", escapedWords)}(?![\p{{L}}\p{{N}}])";
+    }
+
+    private static string ExtractPublisherOrSource(ReferenceAnalysis reference)
+    {
+        var source = reference.ReferenceType switch
+        {
+            "Articulo de revista" => ExtractJournalName(reference.Reference),
+            "Libro" => ExtractLastSourcePart(reference.Reference),
+            "Capitulo de libro" => ExtractLastSourcePart(reference.Reference),
+            "Capitulo de libro de actas" => ExtractLastSourcePart(reference.Reference),
+            "Ponencia en conferencia" => ExtractLastSourcePart(reference.Reference),
+            "Reporte institucional" => ExtractLastSourcePart(reference.Reference),
+            "Sitio web" => ExtractWebsiteName(reference.Reference),
+            _ => string.Empty
+        };
+
+        return NormalizeSourceName(source);
+    }
+
+    private static string ExtractJournalName(string reference)
+    {
+        var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
+
+        if (!dateMatch.Success)
+        {
+            return string.Empty;
+        }
+
+        var afterDate = reference[(dateMatch.Index + dateMatch.Length)..].Trim();
+        var match = Regex.Match(
+            afterDate,
+            @"\.\s*(?<journal>[^.]{2,160}),\s*\d+",
+            RegexOptions.CultureInvariant);
+
+        return match.Success
+            ? CleanSourceCandidate(match.Groups["journal"].Value)
+            : string.Empty;
+    }
+
+    private static string ExtractLastSourcePart(string reference)
+    {
+        var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
+
+        if (!dateMatch.Success)
+        {
+            return string.Empty;
+        }
+
+        var beforeUrl = Regex.Replace(
+            reference[(dateMatch.Index + dateMatch.Length)..],
+            @"https?://\S+",
+            string.Empty,
+            RegexOptions.CultureInvariant);
+        var parts = beforeUrl
+            .Split('.', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Where(part => !part.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            .Where(part => !part.StartsWith("Recuperado", StringComparison.OrdinalIgnoreCase))
+            .Where(part => !Regex.IsMatch(part, @"^\(?pp\.", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+            .ToList();
+
+        return parts.Count >= 2
+            ? CleanSourceCandidate(parts[^1])
+            : string.Empty;
+    }
+
+    private static string ExtractWebsiteName(string reference)
+    {
+        var urlMatch = Regex.Match(reference, @"https?://\S+", RegexOptions.CultureInvariant);
+
+        if (!urlMatch.Success)
+        {
+            return string.Empty;
+        }
+
+        var beforeUrl = reference[..urlMatch.Index].Trim();
+        var dateMatch = Regex.Match(beforeUrl, DatePattern, RegexOptions.CultureInvariant);
+
+        if (!dateMatch.Success)
+        {
+            return string.Empty;
+        }
+
+        var afterDate = beforeUrl[(dateMatch.Index + dateMatch.Length)..].Trim();
+        var parts = afterDate
+            .Split('.', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+
+        return parts.Count >= 2
+            ? CleanSourceCandidate(parts[^1])
+            : string.Empty;
+    }
+
+    private static string NormalizeSourceName(string source)
+    {
+        var cleaned = CleanSourceCandidate(source);
+        return IsValidSourceName(cleaned) ? cleaned : "No Identificado";
+    }
+
+    private static string CleanSourceCandidate(string source)
+    {
+        var decodedSource = WebUtility.HtmlDecode(Regex.Replace(
+            source,
+            @"&amp;",
+            "&",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
+
+        var cleaned = TextUtilities.NormalizeWhitespace(decodedSource)
+            .Trim()
+            .Trim(',', ';', ':', '.', '-', '–', '—', '&', '*', '•', '·', ')', '(', '[', ']');
+
+        cleaned = Regex.Replace(
+            cleaned,
+            @"\s*,\s*\d+\s*(?:\([^)]*\))?(?:\s*,.*)?$",
+            string.Empty,
+            RegexOptions.CultureInvariant);
+
+        return cleaned.Trim()
+            .Trim(',', ';', ':', '.', '-', '–', '—', '&', '*', '•', '·', ')', '(', '[', ']');
+    }
+
+    private static bool IsValidSourceName(string source)
+    {
+        if (source.Length < 3)
+        {
+            return false;
+        }
+
+        if (!Regex.IsMatch(source, @"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{3,}", RegexOptions.CultureInvariant))
+        {
+            return false;
+        }
+
+        if (Regex.IsMatch(source, @"^(?:\d+|\d+\)|[ivxlcdm]+\.?)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            return false;
+        }
+
+        if (Regex.IsMatch(source, @"^[,&;:\-\s•·]+", RegexOptions.CultureInvariant))
+        {
+            return false;
+        }
+
+        return source.Count(char.IsLetter) >= 3;
+    }
+
+    private static ReferenceAnalysis AnalyzeReference(
+        int number,
+        string reference,
+        bool hasMixedFormatBlock)
+    {
+        var cleanup = RemoveEmbeddedHeaderFooterNoise(TextUtilities.NormalizeWhitespace(reference));
+        var normalized = cleanup.CleanedReference;
         var reasons = new List<string>();
+
+        if (hasMixedFormatBlock)
+        {
+            reasons.Add(MixedFormatsWarning);
+        }
+
+        reasons.AddRange(cleanup.RemovedFragments
+            .Select(fragment => $"{RemovedPageHeaderWarningPrefix} [{fragment}]"));
+
         var citationStyle = DetectCitationStyle(normalized);
         var referenceType = citationStyle == "APA 7" ? ClassifyReference(normalized) : "Otro formato";
         var isNonStandardApaType = false;
 
         if (citationStyle != "APA 7")
         {
-            reasons.Add($"Otro formato: {citationStyle} — no aplica análisis APA 7.");
+            if (IsRecognizedNonApaFormat(citationStyle))
+            {
+                reasons.Add($"Otro formato: {citationStyle} — no aplica análisis APA 7.");
+
+                return new ReferenceAnalysis(
+                    number,
+                    normalized,
+                    referenceType,
+                    citationStyle,
+                    "OtherFormat",
+                    false,
+                    reasons);
+            }
+
+            reasons.Add("No cumple: la referencia no inicia con autor APA 7 en formato Apellido, iniciales o institucion seguido de fecha entre parentesis.");
 
             return new ReferenceAnalysis(
                 number,
                 normalized,
-                referenceType,
+                "Ambiguo",
                 citationStyle,
-                "OtherFormat",
+                "Apa7Invalid",
                 false,
                 reasons);
         }
@@ -450,6 +1053,21 @@ public static class Apa7ReferenceService
             reasons.Add("No cumple: usa ORCID como identificador de fuente; ORCID identifica autores, no articulos.");
         }
 
+        if (HasUnbalancedQuotationMarks(normalized))
+        {
+            reasons.Add("No cumple: nombre de revista, titulo o fuente con comillas sin cerrar o incompletas.");
+        }
+
+        if (HasNoDateWithUnreliableSource(normalized))
+        {
+            reasons.Add("No cumple: usa (n.d.) o (s.f.) sin fuente identificable o URL confiable.");
+        }
+
+        if (HasLikelyCompoundSurname(authorText))
+        {
+            reasons.Add("Advertencia: apellido compuesto detectado; verificar manualmente con la fuente original.");
+        }
+
         if (UsesOldRetrievalPhrase(normalized))
         {
             reasons.Add("No cumple: usa 'Retrieved from', 'Recuperado de' u 'Obtenido de', propio de estilos anteriores y no requerido en APA 7.");
@@ -480,7 +1098,10 @@ public static class Apa7ReferenceService
         var blockingReasons = reasons
             .Where(reason =>
                 reason.StartsWith("No cumple:", StringComparison.Ordinal) ||
-                reason.StartsWith("Advertencia:", StringComparison.Ordinal))
+                reason.StartsWith(BoundaryWarning, StringComparison.Ordinal))
+            .ToList();
+        var invalidReasons = blockingReasons
+            .Where(IsStructurallyInvalidApaReason)
             .ToList();
 
         if (blockingReasons.Count == 0)
@@ -488,14 +1109,39 @@ public static class Apa7ReferenceService
             reasons.Insert(0, "Cumple estructura APA 7 basica para el tipo detectado.");
         }
 
+        var status = blockingReasons.Count == 0 && !isNonStandardApaType
+            ? "Apa7Correct"
+            : invalidReasons.Count > 0 || isNonStandardApaType
+                ? "Apa7Invalid"
+                : "Apa7WithErrors";
+
         return new ReferenceAnalysis(
             number,
             normalized,
             referenceType,
             citationStyle,
-            blockingReasons.Count == 0 && !isNonStandardApaType ? "Apa7Correct" : "Apa7WithErrors",
-            blockingReasons.Count == 0,
+            status,
+            status == "Apa7Correct",
             reasons);
+    }
+
+    private static bool IsRecognizedNonApaFormat(string citationStyle)
+    {
+        return citationStyle is "Formato IEEE" or "Formato Vancouver" or "Formato MLA" or "Formato Chicago";
+    }
+
+    private static bool IsStructurallyInvalidApaReason(string reason)
+    {
+        return reason.Contains("no inicia con autor APA 7", StringComparison.OrdinalIgnoreCase) ||
+            reason.Contains("no tiene año o fecha", StringComparison.OrdinalIgnoreCase) ||
+            reason.Contains("fecha aparece sin autor", StringComparison.OrdinalIgnoreCase) ||
+            reason.Contains("autor no sigue", StringComparison.OrdinalIgnoreCase) ||
+            reason.Contains("inicial primero", StringComparison.OrdinalIgnoreCase) ||
+            reason.Contains("año aparece al final", StringComparison.OrdinalIgnoreCase) ||
+            reason.Contains("referencia parece incompleta", StringComparison.OrdinalIgnoreCase) ||
+            reason.Contains("despues de la fecha no se distinguen", StringComparison.OrdinalIgnoreCase) ||
+            reason.Contains("tipo no estandar", StringComparison.OrdinalIgnoreCase) ||
+            reason.Contains("tipo ambiguo", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string DetectCitationStyle(string reference)
@@ -565,7 +1211,33 @@ public static class Apa7ReferenceService
     private static bool IsIeeeReference(string reference)
     {
         return Regex.IsMatch(reference, @"^\s*\[\d+\]", RegexOptions.CultureInvariant) ||
-            Regex.IsMatch(reference, @"^[A-Z]\.\s*[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\-]+.*,\s*[""“].+[""”].*,\s*(?:19|20)\d{2}\.?\s*$", RegexOptions.CultureInvariant);
+            Regex.IsMatch(reference, @"^[A-Z]\.\s*[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\-]+.*,\s*[""“].+[""”].*,\s*(?:19|20)\d{2}\.?\s*$", RegexOptions.CultureInvariant) ||
+            IsIeeeAuthorYearReference(reference);
+    }
+
+    private static bool IsIeeeAuthorYearReference(string reference)
+    {
+        var normalized = TextUtilities.NormalizeWhitespace(reference);
+
+        if (!Regex.IsMatch(
+            normalized,
+            $@"^{IeeeReferenceStartPattern}",
+            RegexOptions.CultureInvariant))
+        {
+            return false;
+        }
+
+        if (!Regex.IsMatch(
+            normalized,
+            @"\(\s*(?:19|20)\d{2}[a-z]?\s*\)\.?\s*$",
+            RegexOptions.CultureInvariant))
+        {
+            return false;
+        }
+
+        return Regex.IsMatch(normalized, @"^" + IeeeReferenceStartPattern + @"[""“]?[A-ZÁÉÍÓÚÑ¿¡]", RegexOptions.CultureInvariant) ||
+            Regex.IsMatch(normalized, @",\s*(?:vol\.?|v\.|núm\.?|no\.?)?\s*\d+[^()]{0,160}\(\s*(?:19|20)\d{2}[a-z]?\s*\)\.?\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) ||
+            Regex.IsMatch(normalized, @",\s*pp\.?\s*\d+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
     private static bool IsVancouverReference(string reference)
@@ -594,6 +1266,11 @@ public static class Apa7ReferenceService
             return "Tipo no estandar";
         }
 
+        if (IsConferencePresentation(reference))
+        {
+            return "Ponencia en conferencia";
+        }
+
         if (IsProceedingsSource(reference))
         {
             return "Capitulo de libro de actas";
@@ -615,6 +1292,7 @@ public static class Apa7ReferenceService
         }
 
         if (HasJournalVolume(reference) ||
+            HasIssueOnlyJournalNumber(reference) ||
             Regex.IsMatch(reference, @"\b\d+\s*\(\s*\d+\s*\)\s*,\s*\d+", RegexOptions.CultureInvariant) ||
             Regex.IsMatch(reference, @"\b\d+\s*,\s*\d+\s*[-–]\s*\d+", RegexOptions.CultureInvariant))
         {
@@ -646,12 +1324,22 @@ public static class Apa7ReferenceService
         switch (referenceType)
         {
             case "Articulo de revista":
-                if (!HasJournalVolume(reference))
+                if (!HasJournalVolume(reference) && !HasIssueOnlyJournalNumber(reference))
                 {
-                    reasons.Add("No cumple: articulo de revista sin volumen detectable.");
+                    reasons.Add("No cumple: articulo de revista sin volumen detectable o numero de revista entre parentesis.");
                 }
 
-                if (!Regex.IsMatch(reference, @"https?://\S+", RegexOptions.CultureInvariant))
+                if (HasJournalVolume(reference) && !HasJournalIssue(reference))
+                {
+                    reasons.Add("Advertencia: posible numero de revista omitido, verificar manualmente.");
+                }
+
+                if (!HasPageRange(reference) && !HasDoiUrl(reference))
+                {
+                    reasons.Add("No cumple: articulo de revista sin paginas ni DOI/URL que identifique el articulo.");
+                }
+
+                if (!HasDoiUrl(reference) && !IsLikelyPreDoiArticle(reference))
                 {
                     reasons.Add("No cumple: articulo de revista sin DOI o URL.");
                 }
@@ -664,24 +1352,40 @@ public static class Apa7ReferenceService
 
             case "Capitulo de libro":
             case "Capitulo de libro de actas":
+            case "Ponencia en conferencia":
                 if (!Regex.IsMatch(reference, @"\bEn\s+", RegexOptions.CultureInvariant))
                 {
-                    reasons.Add("No cumple: capitulo de libro/actas sin 'En' antes del libro o proceedings.");
+                    if (referenceType == "Ponencia en conferencia" && Regex.IsMatch(reference, @"\[(?:Ponencia|Conference paper|Presentaci[oó]n)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+                    {
+                        // APA 7 permite ponencias no publicadas sin "En" cuando se identifican como ponencia.
+                    }
+                    else
+                    {
+                        reasons.Add("No cumple: capitulo/proceedings sin 'En' antes del libro, actas o proceedings.");
+                    }
                 }
 
                 if (!Regex.IsMatch(reference, @"\b\(Eds?\.?\)|\b\(Ed\.?\)", RegexOptions.CultureInvariant))
                 {
-                    reasons.Add("No cumple: capitulo de libro/actas sin editor en formato (Ed.) o (Eds.).");
+                    if (referenceType == "Capitulo de libro de actas" || referenceType == "Ponencia en conferencia")
+                    {
+                        reasons.Add("Advertencia: proceedings o ponencia sin editor nombrado; en conferencias IEEE el editor frecuentemente no esta disponible.");
+                    }
+                    else
+                    {
+                        reasons.Add("No cumple: capitulo de libro sin editor en formato (Ed.) o (Eds.).");
+                    }
                 }
 
-                if (!Regex.IsMatch(reference, @"\(pp\.\s*\d+\s*[-–]\s*\d+\)", RegexOptions.CultureInvariant))
+                if (!Regex.IsMatch(reference, @"\(pp\.\s*\d+\s*[-–]\s*\d+\)", RegexOptions.CultureInvariant) &&
+                    !HasDoiUrl(reference))
                 {
-                    reasons.Add("No cumple: capitulo de libro/actas sin paginas en formato (pp. xx-xx).");
+                    reasons.Add("No cumple: capitulo/proceedings sin paginas en formato (pp. xx-xx) ni DOI/URL suficiente.");
                 }
 
-                if (!HasBookPublisher(reference))
+                if (!HasBookPublisher(reference) && !HasDoiUrl(reference))
                 {
-                    reasons.Add("No cumple: capitulo de libro/actas sin editorial identificable.");
+                    reasons.Add("No cumple: capitulo/proceedings sin editorial identificable ni DOI/URL.");
                 }
                 break;
 
@@ -733,6 +1437,13 @@ public static class Apa7ReferenceService
                     reasons.Add("No cumple: sitio web sin URL.");
                 }
 
+                var websiteDate = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
+                if (websiteDate.Success &&
+                    Regex.IsMatch(websiteDate.Value, @"^\(\s*(?:19|20)\d{2}[a-z]?\s*\)$", RegexOptions.CultureInvariant))
+                {
+                    reasons.Add("Advertencia: sitio web con solo año; verificar si requiere fecha completa (año, día de mes).");
+                }
+
                 if (UsesOldRetrievalPhrase(reference))
                 {
                     reasons.Add("No cumple: sitio web usa formula de recuperacion antigua; en APA 7 se omite salvo contenido cambiante.");
@@ -749,7 +1460,7 @@ public static class Apa7ReferenceService
                 break;
 
             case "Ambiguo":
-                reasons.Add("No cumple: tipo ambiguo; no se pueden verificar campos obligatorios de una fuente APA 7 concreta.");
+                reasons.Add("No cumple: tipo ambiguo — verificar manualmente.");
                 break;
         }
 
@@ -836,11 +1547,88 @@ public static class Apa7ReferenceService
             RegexOptions.CultureInvariant);
     }
 
+    private static bool HasIssueOnlyJournalNumber(string reference)
+    {
+        var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
+
+        if (!dateMatch.Success)
+        {
+            return false;
+        }
+
+        var afterDate = reference[(dateMatch.Index + dateMatch.Length)..];
+        return Regex.IsMatch(
+            afterDate,
+            @"\.\s*[^.]{2,120},\s*\(\s*\d+\s*\)(?:,|\.)",
+            RegexOptions.CultureInvariant);
+    }
+
+    private static bool HasJournalIssue(string reference)
+    {
+        var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
+
+        if (!dateMatch.Success)
+        {
+            return false;
+        }
+
+        var afterDate = reference[(dateMatch.Index + dateMatch.Length)..];
+        return Regex.IsMatch(afterDate, @"\b\d+\s*\(\s*\d+\s*\)", RegexOptions.CultureInvariant);
+    }
+
+    private static bool HasPageRange(string reference)
+    {
+        return Regex.IsMatch(
+            reference,
+            @"(?:,\s*|\bpp\.\s*)\d+\s*[-–]\s*\d+",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    }
+
+    private static bool HasDoiUrl(string reference)
+    {
+        return Regex.IsMatch(reference, @"https?://\S+", RegexOptions.CultureInvariant);
+    }
+
+    private static bool IsLikelyPreDoiArticle(string reference)
+    {
+        var year = ExtractReferenceYear(reference);
+        return int.TryParse(year, out var parsedYear) && parsedYear < 2000;
+    }
+
     private static bool UsesOldRetrievalPhrase(string reference)
     {
         return reference.Contains("Retrieved from", StringComparison.OrdinalIgnoreCase) ||
             reference.Contains("Recuperado de", StringComparison.OrdinalIgnoreCase) ||
+            reference.Contains("Recuperado el", StringComparison.OrdinalIgnoreCase) ||
             reference.Contains("Obtenido de", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasUnbalancedQuotationMarks(string reference)
+    {
+        var doubleQuoteCount = reference.Count(character => character == '"');
+        var leftQuoteCount = reference.Count(character => character == '“');
+        var rightQuoteCount = reference.Count(character => character == '”');
+
+        return doubleQuoteCount % 2 != 0 || leftQuoteCount != rightQuoteCount;
+    }
+
+    private static bool HasNoDateWithUnreliableSource(string reference)
+    {
+        if (!Regex.IsMatch(reference, @"\(\s*(?:n\.?\s*d\.?|s\.?\s*f\.?)\s*\)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            return false;
+        }
+
+        return !Regex.IsMatch(reference, @"https?://\S+", RegexOptions.CultureInvariant) &&
+            !HasBookPublisher(reference) &&
+            !HasWebsiteNameBeforeUrl(reference);
+    }
+
+    private static bool HasLikelyCompoundSurname(string authorText)
+    {
+        var firstAuthor = TextUtilities.NormalizeWhitespace(authorText).Split(',', 2)[0];
+        return firstAuthor.Contains('-', StringComparison.Ordinal) ||
+            Regex.IsMatch(firstAuthor, @"\b(?:de|del|de la|de los|van|von)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
     private static bool HasInitialFirstAuthor(string reference)
@@ -919,4 +1707,25 @@ public static class Apa7ReferenceService
             @"\bEn\b.{0,180}\b(?:Proceedings|Conference|International Conference|Symposium|Congress|Congreso|Conferencia|Simposio|Actas|Memorias)\b",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
+
+    private static bool IsConferencePresentation(string reference)
+    {
+        return Regex.IsMatch(
+            reference,
+            @"\[(?:Ponencia|Conference paper|Presentaci[oó]n|Paper presentation)[^\]]*\]",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) ||
+            Regex.IsMatch(
+                reference,
+                @"\b(?:congreso|conferencia|conference|symposium|simposio|evento)\b",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) &&
+            !LooksLikeAcademicSource(reference);
+    }
+
+    private sealed record BodyPageText(int PageNumber, string Text);
+
+    private sealed record CitationMatch(string Citation, int PageNumber);
+
+    private sealed record HeaderFooterNoiseRemoval(
+        string CleanedReference,
+        IReadOnlyList<string> RemovedFragments);
 }

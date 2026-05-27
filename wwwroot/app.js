@@ -96,6 +96,7 @@ function renderResults(files) {
 
     meta.append(message);
     meta.append(createParentheticalCitationsBlock(file.parentheticalCitations || []));
+    meta.append(createNarrativeCitationsBlock(file.narrativeCitations || []));
     meta.append(createApa7AnalysisBlock(file.apa7Analysis));
 
     const bibliography = document.createElement("div");
@@ -135,6 +136,7 @@ function renderResults(files) {
 
   renderYearSummary(files);
   renderAuthorSummary(files);
+  renderPublisherSummary(files);
 }
 
 function createParentheticalCitationsBlock(citations) {
@@ -142,24 +144,64 @@ function createParentheticalCitationsBlock(citations) {
   container.className = "bibliography";
 
   const title = document.createElement("h4");
-  title.textContent = `Citas parentéticas fuera de referencias (${citations.length})`;
+  title.textContent = `Citas en el texto por primer autor APA 7 (${citations.length})`;
   container.append(title);
 
   if (citations.length === 0) {
     const empty = document.createElement("p");
     empty.className = "bibliography-empty";
-    empty.textContent = "No se detectaron citas parentéticas en el cuerpo del documento.";
+    empty.textContent = "No se detectaron menciones de primeros autores APA 7 correctos en el cuerpo del documento.";
     container.append(empty);
     return container;
   }
 
   citations.forEach((citation) => {
     const block = document.createElement("pre");
-    block.textContent = `${citation.citation} - ${citation.count} vez/veces`;
+    block.textContent = `${citation.citation} - ${citation.count} vez/veces - ${formatPages(citation.pages || [])}`;
     container.append(block);
   });
 
   return container;
+}
+
+function createNarrativeCitationsBlock(citations) {
+  const container = document.createElement("div");
+  container.className = "bibliography";
+
+  const title = document.createElement("h4");
+  title.textContent = `Citas narrativas por primer autor APA 7 (${citations.length})`;
+  container.append(title);
+
+  if (citations.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "bibliography-empty";
+    empty.textContent = "No se detectaron citas narrativas con primeros autores de referencias APA 7 correctas.";
+    container.append(empty);
+    return container;
+  }
+
+  citations.forEach((citation) => {
+    const block = document.createElement("pre");
+    block.textContent = `${citation.citation} - ${citation.count} vez/veces - ${formatPages(citation.pages || [])}`;
+    container.append(block);
+  });
+
+  return container;
+}
+
+function formatPages(pages) {
+  const uniquePages = Array.from(new Set((pages || [])
+    .map((page) => Number(page))
+    .filter((page) => Number.isFinite(page) && page > 0)))
+    .sort((a, b) => a - b);
+
+  if (uniquePages.length === 0) {
+    return "p. no disponible";
+  }
+
+  return uniquePages.length === 1
+    ? `p. ${uniquePages[0]}`
+    : `pp. ${uniquePages.join(", ")}`;
 }
 
 function renderYearSummary(files) {
@@ -307,7 +349,10 @@ function createApa7AnalysisBlock(analysis) {
   summary.append(
     createMetric("Total", analysis.totalReferences),
     createMetric("Correctas", analysis.correctReferences, "ok"),
-    createMetric("Incorrectas", analysis.incorrectReferences, "bad")
+    createMetric("APA con errores", analysis.incorrectReferences, "bad"),
+    createMetric("No cumple APA 7", analysis.nonCompliantReferences || 0, "bad"),
+    createMetric("Otro formato", analysis.otherFormatReferences || 0),
+    createMetric("Verificar manualmente", analysis.manualReviewReferences || 0)
   );
   container.append(summary);
 
@@ -316,7 +361,9 @@ function createApa7AnalysisBlock(analysis) {
   filters.append(
     createFilterButton("Todas", analysis.references.length, "is-active"),
     createFilterButton("Sí cumplen", analysis.correctReferences, "ok"),
-    createFilterButton("No cumplen", analysis.incorrectReferences, "bad")
+    createFilterButton("APA con errores", analysis.incorrectReferences, "bad"),
+    createFilterButton("No cumple APA 7", analysis.nonCompliantReferences || 0, "bad"),
+    createFilterButton("Otro formato", analysis.otherFormatReferences || 0)
   );
   container.append(filters);
 
@@ -500,6 +547,128 @@ function renderAuthorSummary(files) {
 
   files.forEach((file) => {
     const fileTotal = Object.values(file.authorCounts || {})
+      .reduce((sum, value) => sum + Number(value || 0), 0);
+    grandTotal += fileTotal;
+
+    const cell = document.createElement("td");
+    cell.textContent = String(fileTotal);
+    totalRow.append(cell);
+  });
+
+  const grandTotalCell = document.createElement("td");
+  grandTotalCell.textContent = String(grandTotal);
+  totalRow.append(grandTotalCell);
+  tfoot.append(totalRow);
+  table.append(tfoot);
+
+  tableWrap.append(table);
+  body.append(tableWrap);
+  summary.append(body);
+  resultsList.append(summary);
+}
+
+function renderPublisherSummary(files) {
+  const publishers = Array.from(
+    new Set(
+      files.flatMap((file) => Object.keys(file.publisherCounts || {}))
+    )
+  ).sort((a, b) => a.localeCompare(b, "es"));
+
+  const summary = document.createElement("details");
+  summary.className = "year-summary";
+
+  const summaryHeader = document.createElement("summary");
+  summaryHeader.className = "result-summary";
+
+  const title = document.createElement("h3");
+  title.textContent = "Editorial o revista en APA 7 correctas";
+
+  const count = document.createElement("span");
+  count.className = "result-count";
+  count.textContent = `${publishers.length} fuente(s)`;
+
+  summaryHeader.append(title, count);
+  summary.append(summaryHeader);
+
+  const body = document.createElement("div");
+  body.className = "result-body";
+
+  if (publishers.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty";
+    empty.textContent = "No se detectaron editoriales o revistas en referencias APA 7 correctas.";
+    body.append(empty);
+    summary.append(body);
+    resultsList.append(summary);
+    return;
+  }
+
+  const tableWrap = document.createElement("div");
+  tableWrap.className = "table-wrap";
+
+  const table = document.createElement("table");
+  table.className = "year-table";
+
+  const thead = document.createElement("thead");
+  const headerRow = document.createElement("tr");
+
+  const publisherHeader = document.createElement("th");
+  publisherHeader.textContent = "Editorial / revista";
+  headerRow.append(publisherHeader);
+
+  files.forEach((file) => {
+    const header = document.createElement("th");
+    header.textContent = file.originalFileName;
+    headerRow.append(header);
+  });
+
+  const totalHeader = document.createElement("th");
+  totalHeader.textContent = "Total";
+  headerRow.append(totalHeader);
+
+  thead.append(headerRow);
+  table.append(thead);
+
+  const tbody = document.createElement("tbody");
+
+  publishers.forEach((publisher) => {
+    const row = document.createElement("tr");
+    const publisherCell = document.createElement("th");
+    publisherCell.scope = "row";
+    publisherCell.textContent = publisher;
+    row.append(publisherCell);
+
+    let rowTotal = 0;
+
+    files.forEach((file) => {
+      const value = (file.publisherCounts || {})[publisher] || 0;
+      rowTotal += value;
+
+      const cell = document.createElement("td");
+      cell.textContent = String(value);
+      row.append(cell);
+    });
+
+    const totalCell = document.createElement("td");
+    totalCell.textContent = String(rowTotal);
+    row.append(totalCell);
+
+    tbody.append(row);
+  });
+
+  table.append(tbody);
+
+  const tfoot = document.createElement("tfoot");
+  const totalRow = document.createElement("tr");
+  const totalLabel = document.createElement("th");
+  totalLabel.scope = "row";
+  totalLabel.textContent = "Total";
+  totalRow.append(totalLabel);
+
+  let grandTotal = 0;
+
+  files.forEach((file) => {
+    const fileTotal = Object.values(file.publisherCounts || {})
       .reduce((sum, value) => sum + Number(value || 0), 0);
     grandTotal += fileTotal;
 
