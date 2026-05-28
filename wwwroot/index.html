@@ -167,6 +167,13 @@
       margin-bottom: 16px;
     }
 
+    .export-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
     .report-button {
       display: inline-flex;
       align-items: center;
@@ -697,6 +704,15 @@
         grid-template-columns: 1fr;
       }
 
+      .results-header {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .export-actions {
+        justify-content: stretch;
+      }
+
       .download,
       .button,
       .report-button {
@@ -747,7 +763,11 @@
     <section class="results-shell">
       <div class="results-header">
         <h2>Resultados</h2>
-        <button id="exportReportButton" class="report-button" type="button" disabled>Exportar reporte</button>
+        <div class="export-actions">
+          <button id="exportCountCsvButton" class="report-button" type="button" disabled>Extraer conteos CSV</button>
+          <button id="exportAllTablesCsvButton" class="report-button" type="button" disabled>Extraer todas las tablas CSV</button>
+          <button id="exportReportButton" class="report-button" type="button" disabled>Exportar reporte</button>
+        </div>
       </div>
       <div id="resultsList" class="results-list"></div>
     </section>
@@ -760,11 +780,21 @@
     const statusText = document.querySelector("#status");
     const resultsList = document.querySelector("#resultsList");
     const exportReportButton = document.querySelector("#exportReportButton");
+    const exportCountCsvButton = document.querySelector("#exportCountCsvButton");
+    const exportAllTablesCsvButton = document.querySelector("#exportAllTablesCsvButton");
     let latestReportFiles = [];
+    const countTableDefinitions = [
+      { title: "Años citados en APA 7 correctas", firstColumnLabel: "Año", countKey: "yearCounts", emptyLabel: "año(s)" },
+      { title: "Títulos de trabajos en APA 7 correctas", firstColumnLabel: "Título del trabajo", countKey: "titleCounts", emptyLabel: "título(s)" },
+      { title: "Primeros autores en APA 7 correctas", firstColumnLabel: "Primer autor", countKey: "authorCounts", emptyLabel: "autor(es)" },
+      { title: "Editorial o revista en APA 7 correctas", firstColumnLabel: "Editorial / revista", countKey: "publisherCounts", emptyLabel: "fuente(s)" },
+    ];
 
     fileInput.addEventListener("change", () => uploadFiles(fileInput.files));
     folderInput.addEventListener("change", () => uploadFiles(folderInput.files));
     exportReportButton.addEventListener("click", exportReport);
+    exportCountCsvButton.addEventListener("click", exportCountTablesCsv);
+    exportAllTablesCsvButton.addEventListener("click", exportAllTablesCsv);
 
     dropZone.addEventListener("dragover", (event) => {
       event.preventDefault();
@@ -798,6 +828,7 @@
       resultsList.innerHTML = "";
       latestReportFiles = [];
       exportReportButton.disabled = true;
+      setCsvExportButtonsDisabled(true);
 
       try {
         const response = await fetch("/api/pdf/convert", {
@@ -826,18 +857,29 @@
         resultsList.innerHTML = '<p class="empty">No hay resultados.</p>';
         latestReportFiles = [];
         exportReportButton.disabled = true;
+        setCsvExportButtonsDisabled(true);
         return;
       }
 
       resultsList.innerHTML = "";
       latestReportFiles = files;
       exportReportButton.disabled = false;
+      setCsvExportButtonsDisabled(false);
       files.forEach((file) => resultsList.append(createFileCard(file)));
       resultsList.append(createAggregateChartsSection(files));
-      resultsList.append(createCountSection("Años citados en APA 7 correctas", "Año", files, "yearCounts", "año(s)"));
-      resultsList.append(createCountSection("Títulos de trabajos en APA 7 correctas", "Título del trabajo", files, "titleCounts", "título(s)"));
-      resultsList.append(createCountSection("Primeros autores en APA 7 correctas", "Primer autor", files, "authorCounts", "autor(es)"));
-      resultsList.append(createCountSection("Editorial o revista en APA 7 correctas", "Editorial / revista", files, "publisherCounts", "fuente(s)"));
+      countTableDefinitions.forEach((definition) => {
+        resultsList.append(createCountSection(
+          definition.title,
+          definition.firstColumnLabel,
+          files,
+          definition.countKey,
+          definition.emptyLabel));
+      });
+    }
+
+    function setCsvExportButtonsDisabled(disabled) {
+      exportCountCsvButton.disabled = disabled;
+      exportAllTablesCsvButton.disabled = disabled;
     }
 
     function exportReport() {
@@ -855,6 +897,207 @@
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
+    }
+
+    function exportCountTablesCsv() {
+      if (!latestReportFiles.length) {
+        return;
+      }
+
+      downloadCsv("conteos", buildCountTablesCsvRows(latestReportFiles));
+    }
+
+    function exportAllTablesCsv() {
+      if (!latestReportFiles.length) {
+        return;
+      }
+
+      const rows = [];
+      appendDocumentSummaryCsvRows(rows, latestReportFiles);
+      appendCitationCsvRows(rows, latestReportFiles, "parentheticalCitations", "Citas parentéticas por primer autor APA 7");
+      appendCitationCsvRows(rows, latestReportFiles, "narrativeCitations", "Citas narrativas por primer autor APA 7");
+      appendReferenceAnalysisCsvRows(rows, latestReportFiles);
+      appendCountTablesCsvRows(rows, latestReportFiles);
+      downloadCsv("todas_las_tablas", rows);
+    }
+
+    function buildCountTablesCsvRows(files) {
+      const rows = [];
+      appendCountTablesCsvRows(rows, files);
+      return rows;
+    }
+
+    function appendDocumentSummaryCsvRows(rows, files) {
+      appendCsvSectionTitle(rows, "Resumen por documento");
+      rows.push([
+        "Documento",
+        "Caracteres extraídos",
+        "Total referencias",
+        "APA 7 correctas",
+        "APA 7 con errores",
+        "No cumple APA 7",
+        "Otro formato",
+        "Verificar manualmente",
+        "Citas parentéticas",
+        "Citas narrativas",
+      ]);
+
+      files.forEach((file) => {
+        const analysis = file.apa7Analysis || {};
+        rows.push([
+          file.originalFileName,
+          Number(file.characterCount || 0),
+          Number(analysis.totalReferences || 0),
+          Number(analysis.correctReferences || 0),
+          Number(analysis.incorrectReferences || 0),
+          Number(analysis.nonCompliantReferences || 0),
+          Number(analysis.otherFormatReferences || 0),
+          Number(analysis.manualReviewReferences || 0),
+          sumCitationCounts(file.parentheticalCitations || []),
+          sumCitationCounts(file.narrativeCitations || []),
+        ]);
+      });
+    }
+
+    function appendCitationCsvRows(rows, files, citationKey, title) {
+      appendCsvSectionTitle(rows, title);
+      rows.push(["Documento", "Primer autor encontrado", "Página(s)", "Veces"]);
+
+      let hasRows = false;
+      files.forEach((file) => {
+        (file[citationKey] || []).forEach((citation) => {
+          hasRows = true;
+          rows.push([
+            file.originalFileName,
+            citation.citation,
+            formatPages(citation.pages || []),
+            Number(citation.count || 0),
+          ]);
+        });
+      });
+
+      if (!hasRows) {
+        rows.push(["Sin datos", "", "", 0]);
+      }
+    }
+
+    function appendReferenceAnalysisCsvRows(rows, files) {
+      appendCsvSectionTitle(rows, "Referencias analizadas");
+      rows.push([
+        "Documento",
+        "Número",
+        "Tipo detectado",
+        "Estilo",
+        "Estado",
+        "Cumple APA 7",
+        "Referencia",
+        "Razones",
+      ]);
+
+      let hasRows = false;
+      files.forEach((file) => {
+        const references = (file.apa7Analysis || {}).references || [];
+        references.forEach((reference) => {
+          hasRows = true;
+          rows.push([
+            file.originalFileName,
+            Number(reference.number || 0),
+            reference.referenceType || "",
+            reference.citationStyle || "",
+            getStatusText(reference),
+            reference.isApa7Compliant ? "Sí" : "No",
+            reference.reference || "",
+            (reference.reasons || []).join(" | "),
+          ]);
+        });
+      });
+
+      if (!hasRows) {
+        rows.push(["Sin datos", "", "", "", "", "", "", ""]);
+      }
+    }
+
+    function appendCountTablesCsvRows(rows, files) {
+      countTableDefinitions.forEach((definition) => {
+        appendCsvSectionTitle(rows, definition.title);
+        const keys = collectCountKeys(files, definition.countKey);
+        rows.push([
+          definition.firstColumnLabel,
+          ...files.map((file) => file.originalFileName),
+          "Total",
+        ]);
+
+        if (!keys.length) {
+          rows.push(["Sin datos", ...files.map(() => 0), 0]);
+          return;
+        }
+
+        keys.forEach((key) => {
+          let rowTotal = 0;
+          const values = files.map((file) => {
+            const value = Number((file[definition.countKey] || {})[key] || 0);
+            rowTotal += value;
+            return value;
+          });
+
+          rows.push([key, ...values, rowTotal]);
+        });
+
+        let grandTotal = 0;
+        const totalCells = files.map((file) => {
+          const fileTotal = Object.values(file[definition.countKey] || {})
+            .reduce((sum, value) => sum + Number(value || 0), 0);
+          grandTotal += fileTotal;
+          return fileTotal;
+        });
+        rows.push(["Total", ...totalCells, grandTotal]);
+      });
+    }
+
+    function appendCsvSectionTitle(rows, title) {
+      if (rows.length > 0) {
+        rows.push([]);
+      }
+
+      rows.push([title]);
+    }
+
+    function sumCitationCounts(citations) {
+      return citations.reduce((sum, citation) => sum + Number(citation.count || 0), 0);
+    }
+
+    function downloadCsv(feature, rows) {
+      const csv = rowsToCsv(rows);
+      const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${feature}_${formatCsvTimestamp(new Date())}.csv`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function rowsToCsv(rows) {
+      return rows
+        .map((row) => row.map(csvCell).join(","))
+        .join("\r\n");
+    }
+
+    function csvCell(value) {
+      const text = value === null || value === undefined ? "" : String(value);
+      return `"${text.replaceAll('"', '""')}"`;
+    }
+
+    function formatCsvTimestamp(date) {
+      const months = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
+      const year = date.getFullYear();
+      const month = months[date.getMonth()];
+      const day = String(date.getDate()).padStart(2, "0");
+      const hour = String(date.getHours()).padStart(2, "0");
+      const minute = String(date.getMinutes()).padStart(2, "0");
+      return `${year}${month}${day}${hour}${minute}`;
     }
 
     function createFileCard(file) {

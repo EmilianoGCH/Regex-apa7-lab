@@ -112,11 +112,152 @@
       gap: 16px;
     }
 
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
     .panel {
       padding: 16px;
       border: 1px solid var(--border);
       border-radius: 8px;
       background: var(--surface);
+    }
+
+    .teacher-note {
+      margin: 16px 0;
+      padding: 16px;
+      border: 1px solid #bfdbfe;
+      border-left: 5px solid var(--blue);
+      border-radius: 8px;
+      background: #eff6ff;
+      color: #1e3a8a;
+      line-height: 1.55;
+    }
+
+    .teacher-note strong {
+      color: #172554;
+    }
+
+    .lesson-card {
+      position: relative;
+      padding-top: 40px;
+    }
+
+    .lesson-number {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      display: inline-grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: var(--blue);
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .plain-list {
+      margin: 10px 0 0;
+      padding-left: 20px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .example-flow {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .example-box {
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .example-box strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .example-arrow {
+      display: grid;
+      place-items: center;
+      color: var(--blue);
+      font-size: 24px;
+      font-weight: 800;
+    }
+
+    .mini-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 14px;
+    }
+
+    .mini-table th,
+    .mini-table td {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .mini-table th {
+      background: var(--blue-soft);
+      color: #1d4ed8;
+    }
+
+    .mini-table td:first-child {
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .walkthrough {
+      display: grid;
+      gap: 12px;
+    }
+
+    .walkthrough-step {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .step-badge {
+      display: inline-grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      background: var(--blue);
+      color: #ffffff;
+      font-weight: 800;
+    }
+
+    .walkthrough-step h3 {
+      margin-bottom: 6px;
+    }
+
+    .walkthrough-step p {
+      margin-bottom: 0;
+    }
+
+    .method-name {
+      color: #1d4ed8;
+      font-family: Consolas, "Courier New", monospace;
+      font-weight: 800;
     }
 
     .note {
@@ -364,6 +505,27 @@
       text-transform: uppercase;
     }
 
+    .code-explain {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .code-explain-item {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--green);
+      border-radius: 8px;
+      background: #ffffff;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .code-explain-item strong {
+      color: var(--text);
+    }
+
     .svg-hint {
       margin-top: 8px;
       color: var(--muted);
@@ -374,9 +536,20 @@
 
     @media (max-width: 900px) {
       .grid-2,
+      .grid-3,
       .snapshot-grid,
       .hero-summary,
-      .flow-labels {
+      .flow-labels,
+      .example-flow {
+        grid-template-columns: 1fr;
+      }
+
+      .example-arrow {
+        min-height: 28px;
+        transform: rotate(90deg);
+      }
+
+      .walkthrough-step {
         grid-template-columns: 1fr;
       }
 
@@ -399,9 +572,15 @@
       <p class="eyebrow">Documentacion tecnica</p>
       <h1>Diagrama de flujo de regex y conteos APA 7</h1>
       <p>
-        Este archivo documenta solo la logica de limpieza, separacion, clasificacion y conteo.
-        No incluye endpoints, carga de archivos ni descarga.
+        Esta pagina explica el codigo como una clase basica de programacion: primero vemos que entra,
+        luego que preguntas hace el programa, y finalmente que datos cuenta. No incluye endpoints,
+        carga de archivos ni descarga.
       </p>
+      <div class="teacher-note">
+        <strong>Idea principal:</strong> el programa no "entiende" una referencia como una persona.
+        Lo que hace es buscar patrones de texto. Esos patrones se llaman <code>regex</code>.
+        Si encuentra una forma parecida a <code>Apellido, I. (2020).</code>, la trata como posible APA 7.
+      </div>
       <div class="hero-summary">
         <div class="summary-card">
           <strong>Entrada</strong>
@@ -426,18 +605,91 @@
 
     <section>
       <div class="section-title">
+        <h2>0. Antes del diagrama: conceptos basicos</h2>
+        <span>clase rapida</span>
+      </div>
+      <div class="grid-3">
+        <div class="panel lesson-card">
+          <span class="lesson-number">1</span>
+          <h3>Regex</h3>
+          <p>Una regex es una regla para buscar texto. Por ejemplo, puede buscar un año escrito como <code>(2020)</code>.</p>
+          <ul class="plain-list">
+            <li>No lee significado.</li>
+            <li>Busca formas repetidas.</li>
+            <li>Sirve para detectar autores, años, DOI y fuentes.</li>
+          </ul>
+        </div>
+        <div class="panel lesson-card">
+          <span class="lesson-number">2</span>
+          <h3>Separar</h3>
+          <p>Antes de contar, el programa necesita cortar el texto en referencias individuales.</p>
+          <ul class="plain-list">
+            <li>Busca donde empieza cada referencia.</li>
+            <li>Corta desde ese inicio hasta el siguiente inicio.</li>
+            <li>Si hay mezcla APA e IEEE, corta cada una por separado.</li>
+          </ul>
+        </div>
+        <div class="panel lesson-card">
+          <span class="lesson-number">3</span>
+          <h3>Contar</h3>
+          <p>El conteo ocurre al final, cuando ya se sabe cuales referencias cumplen APA 7.</p>
+          <ul class="plain-list">
+            <li>No cuenta referencias con errores.</li>
+            <li>No cuenta IEEE como APA.</li>
+            <li>Cuenta años, titulos, autores y editorial/revista.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-title">
+        <h2>0.1 Ejemplo simple de entrada y salida</h2>
+        <span>como pensarlo</span>
+      </div>
+      <div class="example-flow">
+        <div class="example-box">
+          <strong>Texto que llega del PDF</strong>
+          <pre class="code">REFERENCIAS
+F-50-01
+García, J. (2020). Titulo del articulo. Revista X, 12(2), 10-20.
+26
+López, M., Titulo IEEE, pp. 12-18 (2021).</pre>
+        </div>
+        <div class="example-arrow">→</div>
+        <div class="example-box">
+          <strong>Resultado esperado del analizador</strong>
+          <pre class="code">1. Se elimina F-50-01 y 26.
+2. Se separan 2 referencias.
+3. García, J. (2020) entra a validacion APA.
+4. López, M., ... (2021) se marca como IEEE.
+5. Solo la APA correcta entra a conteos.</pre>
+        </div>
+      </div>
+      <div class="teacher-note">
+        <strong>Regla de clase:</strong> primero limpiar, despues separar, despues clasificar,
+        y hasta el final contar. Si se cuenta antes de separar bien, los totales salen mal.
+      </div>
+    </section>
+
+    <section>
+      <div class="section-title">
         <h2>1. Separacion tecnica de referencias</h2>
         <span>regex + limpieza + delimitacion</span>
       </div>
       <p class="note">
-        La primera capa limpia ruido de encabezado/pie y luego decide si el bloque contiene referencias APA,
-        IEEE o mixtas. Si el corte no es confiable, se deja advertencia para revision manual.
+        Esta parte responde una pregunta basica: "donde empieza y termina cada referencia?".
+        El programa limpia texto que no pertenece a la bibliografia y luego busca inicios repetidos.
       </p>
+      <div class="teacher-note">
+        <strong>Como leer el diagrama:</strong> las cajas azules son acciones, los rombos amarillos son preguntas,
+        las cajas verdes son resultados utiles y las rojas son casos que deben revisarse o no se pueden usar como APA 7.
+      </div>
       <div class="flow-labels">
-        <div class="flow-label"><strong>1. Normalizar</strong>Quitar titulo de seccion, espacios y ruido repetido.</div>
-        <div class="flow-label"><strong>2. Localizar inicios</strong>Buscar patrones APA e IEEE dentro del mismo bloque.</div>
-        <div class="flow-label"><strong>3. Cortar</strong>Ordenar indices y extraer referencias individuales.</div>
-        <div class="flow-label"><strong>4. Advertir</strong>Marcar mezcla o delimitacion incierta sin unir todo el bloque.</div>
+        <div class="flow-label"><strong>1. Normalizar</strong>Dejar el texto en una forma mas facil de leer para la computadora.</div>
+        <div class="flow-label"><strong>2. Localizar inicios</strong>Buscar frases que parecen inicio de referencia, como autor + año.</div>
+        <div class="flow-label"><strong>3. Cortar</strong>Tomar el texto entre un inicio y el siguiente inicio.</div>
+        <div class="flow-label"><strong>4. Advertir</strong>Si algo no es claro, avisar en lugar de inventar una respuesta.</div>
       </div>
       <div class="svg-wrap" role="img" aria-label="Diagrama de separacion de referencias">
         <svg viewBox="0 0 1680 760" xmlns="http://www.w3.org/2000/svg">
@@ -544,14 +796,18 @@
         <span>APA 7 estricta + agregaciones</span>
       </div>
       <p class="note">
-        Primero se decide el formato base. Solo si la referencia empieza como APA 7 entra a validacion por tipo.
-        Los conteos globales usan solo referencias APA 7 correctas.
+        Esta parte responde otra pregunta: "esta referencia se puede contar como APA 7 correcta?".
+        Primero se identifica el formato. Solo despues se revisan los campos obligatorios.
       </p>
+      <div class="teacher-note">
+        <strong>Punto clave:</strong> clasificar no es lo mismo que contar. Una referencia puede existir,
+        pero si es IEEE o tiene errores, no entra al conteo estricto de APA 7.
+      </div>
       <div class="flow-labels">
-        <div class="flow-label"><strong>1. Formato base</strong>APA 7, IEEE, Vancouver, MLA, Chicago u otro estilo.</div>
-        <div class="flow-label"><strong>2. Tipo APA</strong>Articulo, libro, capitulo, ponencia, reporte o sitio web.</div>
-        <div class="flow-label"><strong>3. Veredicto</strong>Correcta, con errores, invalida, otro formato o revision manual.</div>
-        <div class="flow-label"><strong>4. Conteo</strong>Solo entran años, titulos, autores y fuentes de APA 7 correctas.</div>
+        <div class="flow-label"><strong>1. Formato base</strong>Primero pregunta: "parece APA 7 o parece otro estilo?".</div>
+        <div class="flow-label"><strong>2. Tipo APA</strong>Si es APA, pregunta si es articulo, libro, capitulo, etc.</div>
+        <div class="flow-label"><strong>3. Veredicto</strong>Decide si cumple, tiene errores, no cumple o es otro formato.</div>
+        <div class="flow-label"><strong>4. Conteo</strong>Solo cuenta las referencias que pasaron todas las reglas.</div>
       </div>
       <div class="svg-wrap" role="img" aria-label="Diagrama de clasificacion y conteos">
         <svg viewBox="0 0 1680 880" xmlns="http://www.w3.org/2000/svg">
@@ -669,15 +925,58 @@
 
     <section>
       <div class="section-title">
+        <h2>2.1 Que se cuenta y que no se cuenta</h2>
+        <span>regla para principiantes</span>
+      </div>
+      <p class="note">
+        Para evitar confusiones, piensa en el conteo como una puerta final. Solo pasan las referencias
+        que ya fueron separadas, clasificadas y aprobadas como APA 7.
+      </p>
+      <table class="mini-table">
+        <thead>
+          <tr>
+            <th>Caso</th>
+            <th>Que hace el programa</th>
+            <th>Entra al conteo?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Referencia APA 7 correcta</td>
+            <td>Extrae año, titulo, primer autor y editorial/revista.</td>
+            <td>Si.</td>
+          </tr>
+          <tr>
+            <td>APA 7 con errores</td>
+            <td>Muestra los errores, pero no la usa para los conteos estrictos.</td>
+            <td>No.</td>
+          </tr>
+          <tr>
+            <td>IEEE, Vancouver, MLA o Chicago</td>
+            <td>La marca como otro formato y no intenta corregirla como APA.</td>
+            <td>No.</td>
+          </tr>
+          <tr>
+            <td>Referencia no delimitada</td>
+            <td>La manda a revision manual porque el corte no es seguro.</td>
+            <td>No.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <div class="section-title">
         <h2>3. Revision del proceso contra el codigo</h2>
         <span>lectura tecnica</span>
       </div>
       <ul class="review-list">
-        <li><strong>Correcto:</strong> el flujo empieza con extraccion de seccion, limpieza, normalizacion y separacion antes de analizar cada referencia.</li>
-        <li><strong>Correcto:</strong> APA e IEEE se detectan por inicios distintos y despues se ordenan los indices para cortar referencias individuales.</li>
-        <li><strong>Correcto:</strong> los formatos IEEE, Vancouver, MLA y Chicago no pasan por validacion APA campo por campo; se clasifican como otro formato.</li>
-        <li><strong>Ajuste importante:</strong> los conteos de anio, titulo, primer autor y editorial/revista se calculan despues de filtrar referencias con <code>IsApa7Compliant</code>.</li>
-        <li><strong>Ajuste importante:</strong> la editorial/revista no se cuenta desde texto bruto; se extrae desde <code>ReferenceAnalysis</code> porque depende del tipo detectado.</li>
+        <li><strong>Primero se prepara el texto:</strong> el codigo busca la seccion de referencias, limpia ruido y normaliza espacios antes de analizar.</li>
+        <li><strong>Despues se hacen cortes:</strong> APA e IEEE se detectan por inicios distintos; luego se ordenan esos inicios para separar referencias individuales.</li>
+        <li><strong>Despues se clasifica:</strong> IEEE, Vancouver, MLA y Chicago no se revisan como APA; se guardan como otro formato.</li>
+        <li><strong>Despues se valida:</strong> si parece APA 7, se revisan autor, año, titulo, fuente, DOI/URL y reglas del tipo de documento.</li>
+        <li><strong>Al final se cuenta:</strong> anio, titulo, primer autor y editorial/revista se calculan solo despues de filtrar con <code>IsApa7Compliant</code>.</li>
+        <li><strong>Detalle importante:</strong> editorial/revista se extrae desde <code>ReferenceAnalysis</code>, porque depende de si la referencia es articulo, libro, sitio web, reporte, etc.</li>
       </ul>
     </section>
 
@@ -700,6 +999,26 @@ private const string GroupAuthorPattern =
 
 private const string IeeeReferenceStartPattern =
     SurnamePattern + @",\s*(?:" + InitialsPattern + @"){1,4}(?:,\s+|:\s+)";</pre>
+          <div class="code-explain">
+            <div class="code-explain-item">
+              <strong><code>DatePattern</code>:</strong> busca la fecha de la referencia. Acepta años como
+              <code>(2020)</code>, fechas en español como <code>(15 de enero de 2020)</code> y casos sin fecha
+              como <code>(s.f.)</code> o <code>(n.d.)</code>.
+            </div>
+            <div class="code-explain-item">
+              <strong><code>PersonAuthorPattern</code>:</strong> busca autores personales con estructura
+              <code>Apellido, I.</code>. Tambien permite varios autores separados por coma, punto y coma,
+              <code>&amp;</code> o <code>y</code>.
+            </div>
+            <div class="code-explain-item">
+              <strong><code>GroupAuthorPattern</code>:</strong> busca autores institucionales, por ejemplo
+              <code>Organizacion Mundial de la Salud.</code>. Se usa cuando el autor no es una persona.
+            </div>
+            <div class="code-explain-item">
+              <strong><code>IeeeReferenceStartPattern</code>:</strong> busca referencias que empiezan parecido
+              a IEEE: <code>Apellido, I.,</code> o <code>Apellido, I.:</code>. Sirve para separarlas sin tratarlas como APA 7.
+            </div>
+          </div>
         </div>
 
         <div class="panel snapshot">
@@ -716,6 +1035,23 @@ private const string IeeeReferenceStartPattern =
     var references = SplitReferences(section);
     return references.Count &gt; 0 ? references : [section];
 }</pre>
+          <div class="code-explain">
+            <div class="code-explain-item">
+              <strong>Linea 1:</strong> <code>FindReferences</code> recibe todo el texto del PDF en la variable <code>text</code>.
+            </div>
+            <div class="code-explain-item">
+              <strong>Busca la seccion:</strong> <code>ExtractReferenceSection(text)</code> intenta quedarse solo con la parte de referencias o bibliografia.
+            </div>
+            <div class="code-explain-item">
+              <strong>Si no hay seccion:</strong> cuando <code>section.Length == 0</code>, devuelve <code>[]</code>, que significa lista vacia.
+            </div>
+            <div class="code-explain-item">
+              <strong>Si si hay seccion:</strong> <code>SplitReferences(section)</code> corta el bloque en referencias individuales.
+            </div>
+            <div class="code-explain-item">
+              <strong>Salida:</strong> si pudo separar, regresa la lista separada; si no pudo, regresa el bloque completo para no perder informacion.
+            </div>
+          </div>
         </div>
 
         <div class="panel snapshot wide">
@@ -743,6 +1079,20 @@ private const string IeeeReferenceStartPattern =
 
     return references;
 }</pre>
+          <div class="code-explain">
+            <div class="code-explain-item">
+              <strong>Normaliza:</strong> primero limpia el titulo de la seccion y espacios raros para que los regex trabajen mejor.
+            </div>
+            <div class="code-explain-item">
+              <strong>Busca inicios:</strong> <code>FindAllReferenceStartIndexes</code> devuelve posiciones donde empieza cada referencia.
+            </div>
+            <div class="code-explain-item">
+              <strong>Corta con indices:</strong> si una referencia empieza en 0 y la siguiente en 145, toma el texto de 0 a 145.
+            </div>
+            <div class="code-explain-item">
+              <strong>Guarda solo texto util:</strong> si despues de limpiar la referencia queda vacia, no la agrega a la lista.
+            </div>
+          </div>
         </div>
 
         <div class="panel snapshot">
@@ -760,6 +1110,20 @@ private const string IeeeReferenceStartPattern =
         .Order()
         .ToList();
 }</pre>
+          <div class="code-explain">
+            <div class="code-explain-item">
+              <strong>Dos busquedas:</strong> una encuentra inicios APA y otra encuentra inicios IEEE.
+            </div>
+            <div class="code-explain-item">
+              <strong><code>Concat</code>:</strong> junta ambas listas de posiciones.
+            </div>
+            <div class="code-explain-item">
+              <strong><code>Distinct</code>:</strong> quita posiciones repetidas.
+            </div>
+            <div class="code-explain-item">
+              <strong><code>Order</code>:</strong> ordena las posiciones de menor a mayor para cortar el texto en secuencia.
+            </div>
+          </div>
         </div>
 
         <div class="panel snapshot">
@@ -774,6 +1138,17 @@ private const string IeeeReferenceStartPattern =
 
     return "Otro estilo";
 }</pre>
+          <div class="code-explain">
+            <div class="code-explain-item">
+              <strong>Orden de preguntas:</strong> primero descarta formatos reconocibles que no son APA.
+            </div>
+            <div class="code-explain-item">
+              <strong>Solo al final pregunta APA:</strong> si no fue IEEE, Vancouver, MLA o Chicago, revisa si parece APA 7.
+            </div>
+            <div class="code-explain-item">
+              <strong>Otro estilo:</strong> si no encaja en ningun patron, queda como estilo no reconocido.
+            </div>
+          </div>
         </div>
 
         <div class="panel snapshot">
@@ -789,6 +1164,14 @@ private const string IeeeReferenceStartPattern =
             "OtherFormat", false, reasons);
     }
 }</pre>
+          <div class="code-explain">
+            <div class="code-explain-item">
+              <strong>Idea:</strong> si la referencia no es APA 7, el programa no intenta forzarla.
+            </div>
+            <div class="code-explain-item">
+              <strong><code>OtherFormat</code>:</strong> guarda el resultado como otro formato y marca <code>false</code> en cumplimiento APA.
+            </div>
+          </div>
         </div>
 
         <div class="panel snapshot">
@@ -804,6 +1187,20 @@ var status = blockingReasons.Count == 0 &amp;&amp; !isNonStandardApaType
     : invalidReasons.Count &gt; 0 || isNonStandardApaType
         ? "Apa7Invalid"
         : "Apa7WithErrors";</pre>
+          <div class="code-explain">
+            <div class="code-explain-item">
+              <strong><code>blockingReasons</code>:</strong> son razones graves que impiden decir que la referencia cumple APA 7.
+            </div>
+            <div class="code-explain-item">
+              <strong><code>Apa7Correct</code>:</strong> solo se asigna si no hay errores bloqueantes.
+            </div>
+            <div class="code-explain-item">
+              <strong><code>Apa7Invalid</code>:</strong> se usa cuando la estructura esta mal o el tipo no es estandar.
+            </div>
+            <div class="code-explain-item">
+              <strong><code>Apa7WithErrors</code>:</strong> significa que parece APA, pero tiene errores corregibles.
+            </div>
+          </div>
         </div>
 
         <div class="panel snapshot">
@@ -820,6 +1217,17 @@ Apa7ReferenceService.CountYears(compliantReferences);
 Apa7ReferenceService.CountTitles(compliantReferences);
 Apa7ReferenceService.CountFirstAuthors(compliantReferences);
 Apa7ReferenceService.CountPublishers(compliantReferenceAnalyses);</pre>
+          <div class="code-explain">
+            <div class="code-explain-item">
+              <strong>Filtro clave:</strong> <code>Where(reference =&gt; reference.IsApa7Compliant)</code> deja pasar solo las referencias correctas.
+            </div>
+            <div class="code-explain-item">
+              <strong><code>compliantReferences</code>:</strong> contiene solo el texto de esas referencias correctas.
+            </div>
+            <div class="code-explain-item">
+              <strong>Conteos:</strong> años, titulos y autores usan el texto; editorial/revista usa el analisis porque depende del tipo detectado.
+            </div>
+          </div>
         </div>
 
         <div class="panel snapshot wide">
@@ -847,6 +1255,20 @@ Apa7ReferenceService.CountPublishers(compliantReferenceAnalyses);</pre>
 
     return counts;
 }</pre>
+          <div class="code-explain">
+            <div class="code-explain-item">
+              <strong><code>counts</code>:</strong> es un diccionario. La llave es el año y el valor es cuantas veces aparece.
+            </div>
+            <div class="code-explain-item">
+              <strong><code>Regex.Match</code>:</strong> busca el año dentro de parentesis, por ejemplo <code>(2020)</code>.
+            </div>
+            <div class="code-explain-item">
+              <strong><code>TryParse</code>:</strong> convierte el texto del año en numero. Si no puede, ignora esa referencia.
+            </div>
+            <div class="code-explain-item">
+              <strong>Suma:</strong> si el año ya existe, aumenta el contador; si no existe, lo crea con valor 1.
+            </div>
+          </div>
         </div>
 
         <div class="panel snapshot">
@@ -861,13 +1283,171 @@ Apa7ReferenceService.CountPublishers(compliantReferenceAnalyses);</pre>
     return Regex.Split(protectedText, @"\.\s+")
         .Select(part =&gt; part.Replace('\u001F', '.'));
 }</pre>
+          <div class="code-explain">
+            <div class="code-explain-item">
+              <strong>Problema:</strong> algunas fuentes tienen punto dentro del nombre, como <code>PortalesMedicos.com</code>.
+            </div>
+            <div class="code-explain-item">
+              <strong>Proteccion:</strong> antes de dividir por puntos, cambia temporalmente el punto del dominio por un caracter especial.
+            </div>
+            <div class="code-explain-item">
+              <strong>Resultado:</strong> evita que <code>PortalesMedicos.com</code> se parta y termine contado solo como <code>com</code>.
+            </div>
+          </div>
         </div>
       </div>
     </section>
 
     <section>
       <div class="section-title">
-        <h2>5. Regex clave</h2>
+        <h2>5. Explicacion del codigo como clase basica</h2>
+        <span>paso a paso</span>
+      </div>
+      <p class="note">
+        Esta seccion traduce el codigo a lenguaje de clase. Piensa que cada metodo es una estacion:
+        recibe datos, hace una tarea pequena y devuelve un resultado para la siguiente estacion.
+      </p>
+      <div class="walkthrough">
+        <div class="walkthrough-step">
+          <span class="step-badge">1</span>
+          <div>
+            <h3><span class="method-name">FindReferences(text)</span>: encontrar la bibliografia</h3>
+            <p>
+              Recibe todo el texto del PDF. Primero busca la seccion de referencias. Si no la encuentra,
+              devuelve una lista vacia. Si la encuentra, manda esa seccion a separar.
+            </p>
+          </div>
+        </div>
+        <div class="walkthrough-step">
+          <span class="step-badge">2</span>
+          <div>
+            <h3><span class="method-name">SplitReferences(section)</span>: partir el bloque en piezas</h3>
+            <p>
+              Toma el bloque de referencias y busca todos los lugares donde parece iniciar una nueva referencia.
+              Luego corta desde un inicio hasta el siguiente. Eso convierte un texto largo en una lista de referencias.
+            </p>
+          </div>
+        </div>
+        <div class="walkthrough-step">
+          <span class="step-badge">3</span>
+          <div>
+            <h3><span class="method-name">FindAllReferenceStartIndexes(text)</span>: guardar posiciones</h3>
+            <p>
+              No corta todavia. Solo apunta posiciones dentro del texto. Por ejemplo: referencia 1 empieza en
+              el caracter 0, referencia 2 empieza en el caracter 145, referencia 3 empieza en el 302.
+            </p>
+          </div>
+        </div>
+        <div class="walkthrough-step">
+          <span class="step-badge">4</span>
+          <div>
+            <h3><span class="method-name">DetectCitationStyle(reference)</span>: decidir el estilo</h3>
+            <p>
+              Ya con una referencia aislada, pregunta: "esto parece APA 7?, IEEE?, Vancouver?, MLA?, Chicago?".
+              Si no es APA 7, no se analiza con reglas APA.
+            </p>
+          </div>
+        </div>
+        <div class="walkthrough-step">
+          <span class="step-badge">5</span>
+          <div>
+            <h3><span class="method-name">AnalyzeReference(...)</span>: revisar la referencia</h3>
+            <p>
+              Si la referencia parece APA 7, revisa reglas: autor correcto, año despues del autor,
+              titulo, tipo de fuente, DOI/URL, editorial, volumen, paginas y otros detalles.
+            </p>
+          </div>
+        </div>
+        <div class="walkthrough-step">
+          <span class="step-badge">6</span>
+          <div>
+            <h3><span class="method-name">CountYears / CountTitles / CountFirstAuthors / CountPublishers</span>: contar</h3>
+            <p>
+              Estos metodos solo reciben referencias que ya pasaron como APA 7 correctas. Por eso el conteo
+              final no mezcla referencias con errores ni referencias de otros formatos.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="teacher-note">
+        <strong>Resumen para recordar:</strong> una funcion no debe hacer todo. Aqui cada funcion tiene una tarea:
+        encontrar, separar, clasificar, validar o contar.
+      </div>
+    </section>
+
+    <section>
+      <div class="section-title">
+        <h2>5.1 Ejemplo de uso del flujo</h2>
+        <span>simulacion sencilla</span>
+      </div>
+      <p class="note">
+        Este ejemplo no muestra endpoints. Solo representa como se usarian las funciones principales
+        con un texto de referencias ya extraido.
+      </p>
+      <div class="example-flow">
+        <div class="example-box">
+          <strong>Codigo de ejemplo</strong>
+          <pre class="code">var textoPdf = """
+Referencias
+García, J. (2020). Aprender regex paso a paso. Revista de Programacion, 12(2), 10-20. https://doi.org/10.1000/demo
+Pérez, A., "An IEEE paper", pp. 20-25 (2021).
+""";
+
+var referencias = Apa7ReferenceService.FindReferences(textoPdf);
+var analisis = Apa7ReferenceService.AnalyzeReferences(referencias);
+
+var correctas = analisis.References
+    .Where(referencia =&gt; referencia.IsApa7Compliant)
+    .Select(referencia =&gt; referencia.Reference);
+
+var conteoAnios = Apa7ReferenceService.CountYears(correctas);</pre>
+        </div>
+        <div class="example-arrow">→</div>
+        <div class="example-box">
+          <strong>Que pasaria en palabras</strong>
+          <pre class="code">1. FindReferences detecta 2 referencias.
+2. AnalyzeReferences revisa cada una.
+3. La referencia de Garcia puede pasar como APA 7.
+4. La referencia de Perez se marca como IEEE.
+5. CountYears cuenta solo 2020, porque solo Garcia paso el filtro.</pre>
+        </div>
+      </div>
+      <table class="mini-table">
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Que guarda</th>
+            <th>Ejemplo</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>referencias</code></td>
+            <td>Lista de referencias separadas.</td>
+            <td>2 elementos.</td>
+          </tr>
+          <tr>
+            <td><code>analisis</code></td>
+            <td>Resultado de revisar cada referencia.</td>
+            <td>1 APA correcta, 1 otro formato.</td>
+          </tr>
+          <tr>
+            <td><code>correctas</code></td>
+            <td>Solo referencias con <code>IsApa7Compliant</code>.</td>
+            <td>Solo la referencia de Garcia.</td>
+          </tr>
+          <tr>
+            <td><code>conteoAnios</code></td>
+            <td>Diccionario año - cantidad.</td>
+            <td><code>2020 = 1</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <div class="section-title">
+        <h2>6. Regex clave</h2>
         <span>patrones tecnicos</span>
       </div>
       <div class="grid-2">
