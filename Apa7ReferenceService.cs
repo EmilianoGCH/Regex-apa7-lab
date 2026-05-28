@@ -3,6 +3,11 @@ using System.Text.RegularExpressions;
 
 public static class Apa7ReferenceService
 {
+    // Patrones base usados por casi todo el analizador.
+    // Ejemplo: DatePattern encuentra "(2020)", "(s.f.)" o "(15 de enero de 2020)".
+    // PersonAuthorPattern encuentra autores como "Garcia, J." o "Garcia, J., & Lopez, M.".
+    // GroupAuthorPattern encuentra instituciones como "Organizacion Mundial de la Salud. (2020).".
+    // IeeeReferenceStartPattern ayuda a detectar referencias tipo "Garcia, J., Titulo ... (2020).".
     private const string DatePattern = @"\(\s*(?:n\.?\s*d\.?|s\.?\s*f\.?|(?:\d{1,2}\s+de\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+\s+de\s+)?(?:19|20)\d{2}[a-z]?)(?:,\s*[^)]{1,40})?\s*\)";
     private const string BoundaryWarning = "Advertencia: No se pudo delimitar la referencia, verificar manualmente.";
     private const string RemovedPageHeaderWarningPrefix = "Advertencia: Se detectó y eliminó encabezado/pie de página incrustado:";
@@ -13,6 +18,8 @@ public static class Apa7ReferenceService
     private const string GroupAuthorPattern = @"[A-Za-zÁÉÍÓÚÜÑÇĞİÖŞáéíóúüñçğıöş0-9&'\-]{2,}(?:\s+(?:de|del|la|las|los|el|en|y|e|of|the|and|for|[A-Za-zÁÉÍÓÚÜÑÇĞİÖŞáéíóúüñçğıöş0-9&'\-]{2,})){0,14}\.\s*(?:\([^)]{2,40}\)\.\s*)?";
     private const string IeeeReferenceStartPattern = SurnamePattern + @",\s*(?:" + InitialsPattern + @"){1,4}(?:,\s+|:\s+)";
 
+    // Punto de entrada para encontrar referencias dentro del texto completo del PDF.
+    // Ejemplo: recibe todo C1.pdf como texto, localiza "Referencias" y devuelve una lista de referencias separadas.
     public static List<string> FindReferences(string text)
     {
         var section = ExtractReferenceSection(text);
@@ -26,6 +33,8 @@ public static class Apa7ReferenceService
         return references.Count > 0 ? references : [section];
     }
 
+    // Busca citas parenteticas generales en el cuerpo del documento.
+    // Ejemplo: detecta "(Garcia, 2020)" y guarda en que pagina aparecio.
     public static IReadOnlyList<ParentheticalCitation> FindParentheticalCitations(string text)
     {
         var bodyPages = ExtractBodyPagesBeforeReferenceSection(text);
@@ -61,6 +70,8 @@ public static class Apa7ReferenceService
         string text,
         IEnumerable<string> compliantReferences)
     {
+        // Solo busca autores que existen en referencias APA 7 correctas.
+        // Ejemplo: si la referencia correcta empieza con "Garcia, J. (2020)", busca "Garcia" en el cuerpo.
         var bodyPages = ExtractBodyPagesBeforeReferenceSection(text);
 
         if (bodyPages.Count == 0)
@@ -115,6 +126,8 @@ public static class Apa7ReferenceService
         string text,
         IEnumerable<string> compliantReferences)
     {
+        // Busca citas narrativas con primer autor + año.
+        // Ejemplo: "Garcia (2020)" o "Garcia et al. (2020)".
         var bodyPages = ExtractBodyPagesBeforeReferenceSection(text);
 
         if (bodyPages.Count == 0)
@@ -173,6 +186,8 @@ public static class Apa7ReferenceService
 
     public static Apa7DocumentAnalysis AnalyzeReferences(IReadOnlyList<string> references)
     {
+        // Primero detecta si la lista mezcla estilos, por ejemplo APA 7 e IEEE.
+        // Si hay mezcla, cada referencia se analiza por separado pero se agrega una advertencia.
         var detectedStyles = references
             .Select(reference => DetectCitationStyle(RemoveEmbeddedHeaderFooterNoise(
                 TextUtilities.NormalizeWhitespace(reference)).CleanedReference))
@@ -194,6 +209,8 @@ public static class Apa7ReferenceService
             analyzedReferences);
     }
 
+    // Cuenta años solo en referencias ya filtradas como APA 7 correctas.
+    // Ejemplo: dos referencias con "(2020)" y una con "(2021)" devuelven {2020: 2, 2021: 1}.
     public static SortedDictionary<int, int> CountYears(IEnumerable<string> references)
     {
         var counts = new SortedDictionary<int, int>();
@@ -218,6 +235,8 @@ public static class Apa7ReferenceService
         return counts;
     }
 
+    // Cuenta el primer autor de cada referencia APA 7 correcta.
+    // Ejemplo: "Garcia, J. (2020)..." cuenta "Garcia, J".
     public static SortedDictionary<string, int> CountFirstAuthors(IEnumerable<string> references)
     {
         var counts = new SortedDictionary<string, int>(StringComparer.CurrentCultureIgnoreCase);
@@ -239,6 +258,8 @@ public static class Apa7ReferenceService
         return counts;
     }
 
+    // Cuenta titulos de trabajos de referencias correctas.
+    // Ejemplo: en "Garcia, J. (2020). Aprender regex. Revista X..." cuenta "Aprender regex".
     public static SortedDictionary<string, int> CountTitles(IEnumerable<string> references)
     {
         var counts = new SortedDictionary<string, int>(StringComparer.CurrentCultureIgnoreCase);
@@ -260,6 +281,8 @@ public static class Apa7ReferenceService
         return counts;
     }
 
+    // Cuenta editorial, revista o sitio fuente segun el tipo ya detectado.
+    // Ejemplo: articulo -> revista; libro -> editorial; sitio web -> nombre del sitio.
     public static SortedDictionary<string, int> CountPublishers(IEnumerable<ReferenceAnalysis> references)
     {
         var counts = new SortedDictionary<string, int>(StringComparer.CurrentCultureIgnoreCase);
@@ -276,6 +299,8 @@ public static class Apa7ReferenceService
         return counts;
     }
 
+    // Imprime en consola las referencias encontradas para depuracion.
+    // Ejemplo: al analizar C8.pdf muestra "Coincidencia 1", "Coincidencia 2", etc.
     public static void WriteToTerminal(string fileName, IReadOnlyList<string> references)
     {
         Console.WriteLine();
@@ -297,6 +322,8 @@ public static class Apa7ReferenceService
 
     private static string ExtractReferenceSection(string text)
     {
+        // Busca la ultima seccion llamada Referencias, Bibliografia o References.
+        // Ejemplo: si el documento tiene "Referencias bibliograficas", toma desde ahi hasta anexos o firma.
         if (string.IsNullOrWhiteSpace(text))
         {
             return string.Empty;
@@ -360,6 +387,8 @@ public static class Apa7ReferenceService
 
     private static string ExtractTextBeforeReferenceSection(string text)
     {
+        // Se queda con el cuerpo del documento antes de la bibliografia.
+        // Ejemplo: sirve para buscar citas como "Garcia (2020)" sin confundirlas con la lista final.
         if (string.IsNullOrWhiteSpace(text))
         {
             return string.Empty;
@@ -390,6 +419,8 @@ public static class Apa7ReferenceService
 
     private static List<BodyPageText> ExtractBodyPagesBeforeReferenceSection(string text)
     {
+        // Divide el cuerpo por paginas usando las marcas que agrega PdfTextService.
+        // Ejemplo: "--- Pagina 5 ---" permite reportar que una cita aparece en p. 5.
         var pages = new List<BodyPageText>();
 
         if (string.IsNullOrWhiteSpace(text))
@@ -447,6 +478,8 @@ public static class Apa7ReferenceService
 
     private static HashSet<string> FindRepeatedInstitutionHeaderLines(IEnumerable<string> lines)
     {
+        // Detecta encabezados institucionales repetidos para eliminarlos.
+        // Ejemplo: "UNIVERSIDAD X" en cada pagina se marca como ruido de encabezado.
         return lines
             .Select(CanonicalHeaderFooterLine)
             .Where(line => IsLikelyInstitutionHeaderLine(line))
@@ -460,6 +493,8 @@ public static class Apa7ReferenceService
         string line,
         IReadOnlySet<string> repeatedInstitutionHeaders)
     {
+        // Decide si una linea completa es ruido y no una referencia.
+        // Ejemplo: "26", "Page 3 of 10" o "Nivel de revision: 02" se omiten.
         var trimmed = TextUtilities.NormalizeWhitespace(line).Trim();
 
         if (trimmed.Length == 0)
@@ -522,6 +557,8 @@ public static class Apa7ReferenceService
 
     private static bool IsHeaderFooterNoiseFragment(string text)
     {
+        // Reconoce fragmentos tipicos de encabezado/pie aun cuando vienen incrustados.
+        // Ejemplo: "F-50-01" dentro de una referencia se elimina y se reporta advertencia.
         return Regex.IsMatch(
             text,
             @"^(?:" +
@@ -539,6 +576,8 @@ public static class Apa7ReferenceService
 
     private static string RemoveReferenceSectionTitle(string section)
     {
+        // Quita el titulo "Referencias" para que no quede pegado a la primera referencia.
+        // Ejemplo: "Referencias Garcia, J. (2020)..." queda como "Garcia, J. (2020)...".
         var withoutLeadingTitle = Regex.Replace(
             section,
             @"(?is)^\s*(?:[#\s]*\d+|[IVXLCDM]+)?[\.\)]?\s*(?:referencias\s*bibliogr[aá]ficas|referencias|bibliograf[ií]a|references)\b[:\s\-–—]*",
@@ -554,6 +593,8 @@ public static class Apa7ReferenceService
 
     private static List<string> SplitReferences(string section)
     {
+        // Convierte un bloque largo en referencias individuales.
+        // Ejemplo: "Garcia... Lopez..." se corta en ["Garcia...", "Lopez..."].
         if (string.IsNullOrWhiteSpace(section))
         {
             return [];
@@ -589,6 +630,8 @@ public static class Apa7ReferenceService
 
     private static List<int> FindAllReferenceStartIndexes(string text)
     {
+        // Junta los inicios APA e IEEE para permitir bloques mixtos.
+        // Ejemplo: si APA empieza en 0 e IEEE en 150, devuelve [0, 150].
         var apaStarts = FindReferenceStartMatches(text)
             .Select(match => match.Index);
         var ieeeStarts = FindIeeeReferenceStartMatches(text)
@@ -625,6 +668,8 @@ public static class Apa7ReferenceService
 
     private static string CleanReference(string reference)
     {
+        // Limpia una referencia despues del corte.
+        // Ejemplo: "1. Garcia, J. (2020)..." queda como "Garcia, J. (2020)...".
         var normalized = TextUtilities.NormalizeWhitespace(reference);
         normalized = RemoveReferenceSectionTitle(normalized);
 
@@ -637,6 +682,8 @@ public static class Apa7ReferenceService
 
     private static string RemoveIeeeInterReferencePageNumbers(string text)
     {
+        // Quita numeros de pagina que se colaron entre referencias IEEE.
+        // Ejemplo: "(2020). 26 Garcia, J.," queda como "(2020). Garcia, J.,".
         return Regex.Replace(
             text,
             $@"(?<yearEnd>\(\s*(?:19|20)\d{{2}}[a-z]?\s*\)\.?)\s+\d{{1,4}}\s+(?={IeeeReferenceStartPattern})",
@@ -673,6 +720,8 @@ public static class Apa7ReferenceService
 
     private static HeaderFooterNoiseRemoval RemoveEmbeddedHeaderFooterNoise(string reference)
     {
+        // Elimina ruido dentro de una referencia ya cortada y guarda que fragmentos se quitaron.
+        // Ejemplo: "Garcia... F-50-01 Revista..." elimina "F-50-01" y lo reporta.
         var removedFragments = new List<string>();
         var cleaned = reference;
 
@@ -717,6 +766,8 @@ public static class Apa7ReferenceService
 
     private static bool IsLikelyParentheticalCitation(string citation)
     {
+        // Filtra textos entre parentesis para quedarse con citas reales.
+        // Ejemplo: acepta "(Garcia, 2020)" pero rechaza "(Figura 1)".
         var inner = citation.Trim().TrimStart('(').TrimEnd(')');
 
         if (!Regex.IsMatch(inner, @"(?:19|20)\d{2}[a-z]?", RegexOptions.CultureInvariant))
@@ -743,6 +794,8 @@ public static class Apa7ReferenceService
 
     private static string ExtractFirstAuthor(string reference)
     {
+        // Obtiene el primer autor antes del año.
+        // Ejemplo: "Garcia, J., & Lopez, M. (2020)" devuelve "Garcia, J".
         var dateMatch = Regex.Match(
             reference,
             DatePattern,
@@ -777,6 +830,8 @@ public static class Apa7ReferenceService
 
     private static string ExtractTitle(string reference)
     {
+        // Obtiene el primer segmento despues de la fecha como titulo.
+        // Ejemplo: "Garcia, J. (2020). Aprender regex. Revista X..." devuelve "Aprender regex".
         var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
 
         if (!dateMatch.Success)
@@ -827,6 +882,8 @@ public static class Apa7ReferenceService
 
     private static string ExtractReferenceYear(string reference)
     {
+        // Extrae solo el numero de año dentro del parentesis de fecha.
+        // Ejemplo: "(2020a)" devuelve "2020".
         var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
 
         if (!dateMatch.Success)
@@ -844,6 +901,8 @@ public static class Apa7ReferenceService
 
     private static string BuildWholeTextPattern(string text)
     {
+        // Construye un patron que busca palabras completas, no fragmentos.
+        // Ejemplo: buscar "Sol" no debe coincidir dentro de "Solano".
         var escapedWords = TextUtilities.NormalizeWhitespace(text)
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(Regex.Escape);
@@ -853,6 +912,8 @@ public static class Apa7ReferenceService
 
     private static string ExtractPublisherOrSource(ReferenceAnalysis reference)
     {
+        // Decide como extraer la fuente segun el tipo detectado.
+        // Ejemplo: articulo usa ExtractJournalName; libro usa el ultimo segmento como editorial.
         var source = reference.ReferenceType switch
         {
             "Articulo de revista" => ExtractJournalName(reference.Reference),
@@ -870,6 +931,8 @@ public static class Apa7ReferenceService
 
     private static string ExtractJournalName(string reference)
     {
+        // Extrae el nombre de revista de un articulo.
+        // Ejemplo: "Titulo. Energy, 162, 126-135" devuelve "Energy".
         var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
 
         if (!dateMatch.Success)
@@ -905,6 +968,8 @@ public static class Apa7ReferenceService
 
     private static string ExtractLastSourcePart(string reference)
     {
+        // Extrae el ultimo segmento util como editorial/fuente en libros, reportes o capitulos.
+        // Ejemplo: "Titulo. McGraw-Hill." devuelve "McGraw-Hill".
         var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
 
         if (!dateMatch.Success)
@@ -930,6 +995,8 @@ public static class Apa7ReferenceService
 
     private static string ExtractWebsiteName(string reference)
     {
+        // Para sitios web, toma el nombre del sitio antes de la URL.
+        // Ejemplo: "Titulo. PortalesMedicos.com. https://..." devuelve "PortalesMedicos.com".
         var urlMatch = Regex.Match(reference, @"https?://\S+", RegexOptions.CultureInvariant);
 
         if (!urlMatch.Success)
@@ -955,6 +1022,8 @@ public static class Apa7ReferenceService
 
     private static string NormalizeSourceName(string source)
     {
+        // Limpia y valida una fuente; si queda mal, usa "No Identificado".
+        // Ejemplo: si la fuente extraida es solo "com", se descarta.
         var cleaned = CleanSourceCandidate(source);
         return IsValidSourceName(cleaned) ? cleaned : "No Identificado";
     }
@@ -983,6 +1052,8 @@ public static class Apa7ReferenceService
 
     private static IEnumerable<string> SplitSentencePartsPreservingDomains(string text)
     {
+        // Divide por puntos sin romper dominios web.
+        // Ejemplo: "PortalesMedicos.com" se mantiene completo y no termina como "com".
         var protectedText = Regex.Replace(
             text,
             @"\b[A-Za-z0-9-]+\.(?:com|org|net|edu|gov|mx|es|ar|cl|co|br)\b",
@@ -1030,6 +1101,8 @@ public static class Apa7ReferenceService
         string reference,
         bool hasMixedFormatBlock)
     {
+        // Analiza una referencia individual y produce veredicto.
+        // Ejemplo: "#3 Garcia, J. (2020)..." puede salir como Apa7Correct o Apa7WithErrors.
         var cleanup = RemoveEmbeddedHeaderFooterNoise(TextUtilities.NormalizeWhitespace(reference));
         var normalized = cleanup.CleanedReference;
         var reasons = new List<string>();
@@ -1046,6 +1119,8 @@ public static class Apa7ReferenceService
         var referenceType = citationStyle == "APA 7" ? ClassifyReference(normalized) : "Otro formato";
         var isNonStandardApaType = false;
 
+        // Si no es APA 7, no intenta validar campos APA; lo clasifica como otro formato.
+        // Ejemplo: una referencia IEEE queda como OtherFormat.
         if (citationStyle != "APA 7")
         {
             if (IsRecognizedNonApaFormat(citationStyle))
@@ -1074,6 +1149,8 @@ public static class Apa7ReferenceService
                 reasons);
         }
 
+        // Validaciones generales que aplican a cualquier referencia que intenta ser APA 7.
+        // Ejemplo: DOI sin "https://doi.org/" o autor con inicial primero se marca como error.
         if (Regex.IsMatch(normalized, @"\((?:[^)]*Entrevistador[^)]*)\)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
         {
             referenceType = "Tipo no estandar";
@@ -1182,6 +1259,8 @@ public static class Apa7ReferenceService
             reasons.Add("No cumple: despues de la fecha no se distinguen titulo y fuente.");
         }
 
+        // Convierte la lista de razones en un estado final.
+        // Ejemplo: sin errores bloqueantes -> Apa7Correct; con estructura rota -> Apa7Invalid.
         var blockingReasons = reasons
             .Where(reason =>
                 reason.StartsWith("No cumple:", StringComparison.Ordinal) ||
@@ -1219,6 +1298,8 @@ public static class Apa7ReferenceService
 
     private static bool IsStructurallyInvalidApaReason(string reason)
     {
+        // Distingue errores estructurales de errores corregibles.
+        // Ejemplo: "no tiene año" invalida mas que "posible numero omitido".
         return reason.Contains("no inicia con autor APA 7", StringComparison.OrdinalIgnoreCase) ||
             reason.Contains("no tiene año o fecha", StringComparison.OrdinalIgnoreCase) ||
             reason.Contains("fecha aparece sin autor", StringComparison.OrdinalIgnoreCase) ||
@@ -1233,6 +1314,8 @@ public static class Apa7ReferenceService
 
     private static string DetectCitationStyle(string reference)
     {
+        // Determina el estilo base antes de validar APA.
+        // Ejemplo: "[1] Garcia..." se marca IEEE y no entra a reglas APA 7.
         if (IsIeeeReference(reference))
         {
             return "Formato IEEE";
@@ -1263,6 +1346,8 @@ public static class Apa7ReferenceService
 
     private static bool LooksLikeApa7(string reference)
     {
+        // Revisa si la referencia tiene forma minima APA: autor antes de fecha entre parentesis.
+        // Ejemplo: "Garcia, J. (2020)." pasa esta primera puerta.
         var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
 
         if (!dateMatch.Success || dateMatch.Index <= 0)
@@ -1277,6 +1362,8 @@ public static class Apa7ReferenceService
 
     private static bool HasAmbiguousReferenceBoundary(string reference)
     {
+        // Detecta referencias posiblemente pegadas.
+        // Ejemplo: una cadena con dos fechas "(2020)" y "(2021)" puede requerir revision manual.
         var startMatches = FindReferenceStartMatches(reference);
         return startMatches.Count > 1 ||
             (startMatches.Count <= 1 && Regex.Matches(reference, DatePattern, RegexOptions.CultureInvariant).Count > 1);
@@ -1284,6 +1371,8 @@ public static class Apa7ReferenceService
 
     private static List<Match> FindReferenceStartMatches(string text)
     {
+        // Busca inicios APA por patron de autor/institucion + fecha.
+        // Ejemplo: encuentra "Garcia, J. (2020)" como inicio de referencia.
         return Regex.Matches(
                 text,
                 $@"(?<!\p{{L}})(?<entryStart>(?:{PersonAuthorPattern}(?:(?:{PersonAuthorPattern}){{0,19}})|{GroupAuthorPattern}){DatePattern})",
@@ -1297,6 +1386,8 @@ public static class Apa7ReferenceService
 
     private static bool IsIeeeReference(string reference)
     {
+        // Reconoce algunos patrones IEEE frecuentes.
+        // Ejemplo: "[1] ..." o "Garcia, J., Titulo..., (2020)." se marca como IEEE.
         return Regex.IsMatch(reference, @"^\s*\[\d+\]", RegexOptions.CultureInvariant) ||
             Regex.IsMatch(reference, @"^[A-Z]\.\s*[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\-]+.*,\s*[""“].+[""”].*,\s*(?:19|20)\d{2}\.?\s*$", RegexOptions.CultureInvariant) ||
             IsIeeeAuthorYearReference(reference);
@@ -1345,6 +1436,8 @@ public static class Apa7ReferenceService
 
     private static string ClassifyReference(string reference)
     {
+        // Clasifica el tipo de fuente APA para saber que campos exigir.
+        // Ejemplo: si tiene volumen y paginas, probablemente es articulo; si tiene editorial, libro.
         var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
         var authorText = dateMatch.Success ? TextUtilities.NormalizeWhitespace(reference[..dateMatch.Index]) : string.Empty;
 
@@ -1406,11 +1499,15 @@ public static class Apa7ReferenceService
 
     private static IEnumerable<string> ValidateByType(string reference, string referenceType)
     {
+        // Aplica reglas especificas segun el tipo de fuente.
+        // Ejemplo: un libro necesita editorial; un articulo necesita volumen/paginas o DOI/URL.
         var reasons = new List<string>();
 
         switch (referenceType)
         {
             case "Articulo de revista":
+                // Articulo: busca volumen, paginas y DOI/URL.
+                // Ejemplo: "Revista X, 12(2), 10-20. https://doi.org/..." cumple mejor que solo "Revista X."
                 if (!HasJournalVolume(reference) && !HasIssueOnlyJournalNumber(reference))
                 {
                     reasons.Add("No cumple: articulo de revista sin volumen detectable o numero de revista entre parentesis.");
@@ -1440,6 +1537,8 @@ public static class Apa7ReferenceService
             case "Capitulo de libro":
             case "Capitulo de libro de actas":
             case "Ponencia en conferencia":
+                // Capitulo/proceedings/ponencia: normalmente necesita "En", editor, paginas y editorial/DOI.
+                // Ejemplo: "En J. Lopez (Ed.), Titulo del libro (pp. 10-20). Editorial."
                 if (!Regex.IsMatch(reference, @"\bEn\s+", RegexOptions.CultureInvariant))
                 {
                     if (referenceType == "Ponencia en conferencia" && Regex.IsMatch(reference, @"\[(?:Ponencia|Conference paper|Presentaci[oó]n)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
@@ -1477,6 +1576,8 @@ public static class Apa7ReferenceService
                 break;
 
             case "Reporte institucional":
+                // Reporte institucional: requiere institucion editora o URL.
+                // Ejemplo: "OMS. (2020). Titulo. https://..." es aceptable como reporte.
                 if (reference.Contains("http", StringComparison.OrdinalIgnoreCase) &&
                     !Regex.IsMatch(reference, @"https?://\S+", RegexOptions.CultureInvariant))
                 {
@@ -1495,6 +1596,8 @@ public static class Apa7ReferenceService
                 break;
 
             case "Libro":
+                // Libro: requiere titulo y editorial; no necesita DOI/URL si es fisico.
+                // Ejemplo: "Garcia, J. (2020). Titulo del libro. McGraw-Hill."
                 var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
 
                 if (dateMatch.Success && Regex.IsMatch(dateMatch.Value, @"\d{1,2}\s+de\s+", RegexOptions.CultureInvariant))
@@ -1519,6 +1622,8 @@ public static class Apa7ReferenceService
                 break;
 
             case "Sitio web":
+                // Sitio web: requiere URL y nombre del sitio antes del enlace.
+                // Ejemplo: "Titulo. Nombre del Sitio. https://..."
                 if (!Regex.IsMatch(reference, @"https?://\S+", RegexOptions.CultureInvariant))
                 {
                     reasons.Add("No cumple: sitio web sin URL.");
@@ -1581,6 +1686,8 @@ public static class Apa7ReferenceService
 
     private static bool HasBookPublisher(string reference)
     {
+        // Decide si hay editorial despues del titulo.
+        // Ejemplo: "Titulo. Editorial Trillas." devuelve true.
         if (Regex.IsMatch(reference, @"https?://\S+", RegexOptions.CultureInvariant) &&
             !HasExplicitBookClue(reference))
         {
@@ -1626,6 +1733,8 @@ public static class Apa7ReferenceService
 
     private static bool LooksLikeAcademicSource(string reference)
     {
+        // Distingue articulo academico de sitio web simple.
+        // Ejemplo: "Energy, 162, 126-135" parece fuente academica.
         return HasJournalVolume(reference) ||
             Regex.IsMatch(reference, @"\b\d+\s*(?:\(\s*\d+\s*\))?\s*,\s*\d+", RegexOptions.CultureInvariant) ||
             reference.Contains("journal", StringComparison.OrdinalIgnoreCase) ||
@@ -1634,6 +1743,8 @@ public static class Apa7ReferenceService
 
     private static bool HasJournalVolume(string reference)
     {
+        // Busca volumen de revista despues del titulo.
+        // Ejemplo: "Revista X, 12(2), 10-20" tiene volumen 12.
         var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
 
         if (!dateMatch.Success)
@@ -1679,6 +1790,8 @@ public static class Apa7ReferenceService
 
     private static bool HasPageRange(string reference)
     {
+        // Busca rango de paginas.
+        // Ejemplo: "10-20" o "pp. 10-20".
         return Regex.IsMatch(
             reference,
             @"(?:,\s*|\bpp\.\s*)\d+\s*[-–]\s*\d+",
@@ -1698,6 +1811,8 @@ public static class Apa7ReferenceService
 
     private static bool UsesOldRetrievalPhrase(string reference)
     {
+        // Detecta frases de APA 6 que no deben usarse normalmente en APA 7.
+        // Ejemplo: "Retrieved from" o "Recuperado de".
         return reference.Contains("Retrieved from", StringComparison.OrdinalIgnoreCase) ||
             reference.Contains("Recuperado de", StringComparison.OrdinalIgnoreCase) ||
             reference.Contains("Recuperado el", StringComparison.OrdinalIgnoreCase) ||
@@ -1748,6 +1863,8 @@ public static class Apa7ReferenceService
 
     private static bool HasManyAuthorsWithoutEllipsis(string authorText)
     {
+        // APA 7 exige puntos suspensivos si hay mas de 20 autores.
+        // Ejemplo: Autor1, Autor2, ... Autor21 debe abreviarse antes del ultimo.
         var authorCount = Regex.Matches(
             authorText,
             SurnamePattern + @",\s*(?:" + InitialsPattern + @"){1,4}",
@@ -1803,6 +1920,8 @@ public static class Apa7ReferenceService
 
     private static bool IsProceedingsSource(string reference)
     {
+        // Reconoce fuentes de actas o proceedings de congreso.
+        // Ejemplo: "Proceedings of the International Conference" se clasifica como actas.
         return Regex.IsMatch(
             reference,
             @"\bEn\b.{0,180}\b(?:Proceedings|Conference|International Conference|Symposium|Congress|Congreso|Conferencia|Simposio|Actas|Memorias)\b",
@@ -1811,6 +1930,8 @@ public static class Apa7ReferenceService
 
     private static bool IsConferencePresentation(string reference)
     {
+        // Reconoce ponencias o presentaciones de conferencia.
+        // Ejemplo: "[Ponencia en conferencia]" o texto que menciona "congreso".
         return Regex.IsMatch(
             reference,
             @"\[(?:Ponencia|Conference paper|Presentaci[oó]n|Paper presentation)[^\]]*\]",
@@ -1822,10 +1943,16 @@ public static class Apa7ReferenceService
             !LooksLikeAcademicSource(reference);
     }
 
+    // Texto del cuerpo separado por pagina.
+    // Ejemplo: PageNumber=3, Text="En el estudio de Garcia (2020)...".
     private sealed record BodyPageText(int PageNumber, string Text);
 
+    // Par interno usado para recordar que cita aparecio en que pagina.
+    // Ejemplo: Citation="Garcia", PageNumber=4.
     private sealed record CitationMatch(string Citation, int PageNumber);
 
+    // Resultado interno de limpiar ruido de encabezado/pie dentro de una referencia.
+    // Ejemplo: CleanedReference sin "F-50-01" y RemovedFragments=["F-50-01"].
     private sealed record HeaderFooterNoiseRemoval(
         string CleanedReference,
         IReadOnlyList<string> RemovedFragments);
