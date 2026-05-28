@@ -1,0 +1,901 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flujo tecnico APA 7: regex y conteos</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f6f8;
+      --card: #ffffff;
+      --surface: #f8fafc;
+      --text: #17202a;
+      --muted: #5b6770;
+      --border: #d9e0e7;
+      --blue: #2563eb;
+      --blue-soft: #eff6ff;
+      --green: #15803d;
+      --green-soft: #ecfdf5;
+      --amber: #b45309;
+      --amber-soft: #fffbeb;
+      --red: #b91c1c;
+      --red-soft: #fef2f2;
+      --shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(180deg, #eef3f7 0%, #f8fafc 42%, #ffffff 100%);
+      color: var(--text);
+    }
+
+    main {
+      width: min(1400px, calc(100% - 32px));
+      margin: 24px auto 40px;
+    }
+
+    header,
+    section {
+      margin-bottom: 18px;
+      padding: 24px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: clamp(30px, 3.5vw, 44px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin-bottom: 0;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+
+    p {
+      max-width: 860px;
+      line-height: 1.55;
+      color: var(--muted);
+    }
+
+    code {
+      padding: 2px 5px;
+      border: 1px solid #dbe3ee;
+      border-radius: 5px;
+      background: #f1f5f9;
+      color: #0f172a;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.92em;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .layout {
+      display: grid;
+      gap: 16px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .panel {
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .note {
+      margin-bottom: 16px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .code {
+      margin: 0;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0f172a;
+      color: #dbeafe;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12.5px;
+      line-height: 1.5;
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: var(--blue);
+    }
+
+    .swatch.green { background: var(--green); }
+    .swatch.amber { background: var(--amber); }
+    .swatch.red { background: var(--red); }
+
+    .svg-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background:
+        linear-gradient(90deg, rgba(37, 99, 235, 0.05) 0 1px, transparent 1px 120px),
+        linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      min-width: 1120px;
+      height: auto;
+    }
+
+    .box {
+      fill: var(--blue-soft);
+      stroke: #7aa7ff;
+      stroke-width: 2;
+      rx: 14;
+    }
+
+    .box.soft {
+      fill: #f8fafc;
+      stroke: #9ca3af;
+    }
+
+    .box.green {
+      fill: var(--green-soft);
+      stroke: #16a34a;
+    }
+
+    .box.amber {
+      fill: var(--amber-soft);
+      stroke: #d97706;
+    }
+
+    .box.red {
+      fill: var(--red-soft);
+      stroke: #dc2626;
+    }
+
+    .diamond {
+      fill: var(--amber-soft);
+      stroke: #d97706;
+      stroke-width: 2;
+    }
+
+    .arrow {
+      stroke: #475569;
+      stroke-width: 2.2;
+      fill: none;
+      marker-end: url(#arrowhead);
+    }
+
+    .arrow.green { stroke: #16a34a; }
+    .arrow.red { stroke: #dc2626; }
+    .arrow.blue { stroke: #2563eb; }
+
+    .label {
+      fill: #0f172a;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .label.small {
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .label.muted {
+      fill: #475569;
+      font-size: 12.5px;
+      font-weight: 600;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #edf2f7;
+    }
+
+    .section-title span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .hero-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .summary-card {
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .summary-card strong {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--text);
+      font-size: 13px;
+      text-transform: uppercase;
+    }
+
+    .summary-card span {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .flow-labels {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 0 0 14px;
+    }
+
+    .flow-label {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--blue);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .flow-label strong {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--text);
+    }
+
+    .review-list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .review-list li {
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--blue);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .review-list strong {
+      color: var(--text);
+    }
+
+    .snapshot-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .snapshot {
+      min-width: 0;
+    }
+
+    .snapshot.wide {
+      grid-column: 1 / -1;
+    }
+
+    .file-ref {
+      display: inline-block;
+      margin-bottom: 8px;
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .svg-hint {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 900px) {
+      .grid-2,
+      .snapshot-grid,
+      .hero-summary,
+      .flow-labels {
+        grid-template-columns: 1fr;
+      }
+
+      header,
+      section {
+        padding: 18px;
+      }
+
+      .section-title {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">Documentacion tecnica</p>
+      <h1>Diagrama de flujo de regex y conteos APA 7</h1>
+      <p>
+        Este archivo documenta solo la logica de limpieza, separacion, clasificacion y conteo.
+        No incluye endpoints, carga de archivos ni descarga.
+      </p>
+      <div class="hero-summary">
+        <div class="summary-card">
+          <strong>Entrada</strong>
+          <span>Texto extraido del PDF con posible ruido de encabezado, pie, saltos y bloques mezclados.</span>
+        </div>
+        <div class="summary-card">
+          <strong>Decision tecnica</strong>
+          <span>Regex para localizar seccion, cortar referencias APA/IEEE y clasificar formato base.</span>
+        </div>
+        <div class="summary-card">
+          <strong>Salida</strong>
+          <span>Conteos estrictos solo desde referencias con <code>IsApa7Compliant</code>.</span>
+        </div>
+      </div>
+      <div class="legend" aria-label="Leyenda">
+        <span class="chip"><span class="swatch"></span>Proceso normal</span>
+        <span class="chip"><span class="swatch amber"></span>Decision / validacion</span>
+        <span class="chip"><span class="swatch green"></span>Salida valida</span>
+        <span class="chip"><span class="swatch red"></span>Salida de error o manual</span>
+      </div>
+    </header>
+
+    <section>
+      <div class="section-title">
+        <h2>1. Separacion tecnica de referencias</h2>
+        <span>regex + limpieza + delimitacion</span>
+      </div>
+      <p class="note">
+        La primera capa limpia ruido de encabezado/pie y luego decide si el bloque contiene referencias APA,
+        IEEE o mixtas. Si el corte no es confiable, se deja advertencia para revision manual.
+      </p>
+      <div class="flow-labels">
+        <div class="flow-label"><strong>1. Normalizar</strong>Quitar titulo de seccion, espacios y ruido repetido.</div>
+        <div class="flow-label"><strong>2. Localizar inicios</strong>Buscar patrones APA e IEEE dentro del mismo bloque.</div>
+        <div class="flow-label"><strong>3. Cortar</strong>Ordenar indices y extraer referencias individuales.</div>
+        <div class="flow-label"><strong>4. Advertir</strong>Marcar mezcla o delimitacion incierta sin unir todo el bloque.</div>
+      </div>
+      <div class="svg-wrap" role="img" aria-label="Diagrama de separacion de referencias">
+        <svg viewBox="0 0 1680 760" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arrowhead" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"></path>
+            </marker>
+          </defs>
+
+          <rect class="box soft" x="50" y="40" width="260" height="72"></rect>
+          <text class="label" x="180" y="72" text-anchor="middle">
+            <tspan x="180" dy="0">Texto extraido del PDF</tspan>
+            <tspan class="label muted" x="180" dy="18">antes de cualquier separacion</tspan>
+          </text>
+
+          <path class="arrow" d="M 180 112 L 180 150"></path>
+
+          <rect class="box" x="50" y="150" width="260" height="92"></rect>
+          <text class="label" x="180" y="183" text-anchor="middle">
+            <tspan x="180" dy="0">Limpiar ruido</tspan>
+            <tspan class="label muted" x="180" dy="18">F-XX-XX, FOR-XXX, titulos, pag. solos</tspan>
+            <tspan class="label muted" x="180" dy="18">niveles de revision, fechas sueltas, encabezados repetidos</tspan>
+          </text>
+
+          <path class="arrow" d="M 180 242 L 180 280"></path>
+
+          <rect class="diamond" x="86" y="280" width="188" height="188" transform="rotate(45 180 374)"></rect>
+          <text class="label" x="180" y="352" text-anchor="middle">
+            <tspan x="180" dy="0">Hay seccion</tspan>
+            <tspan x="180" dy="18">REFERENCIAS /</tspan>
+            <tspan x="180" dy="18">BIBLIOGRAFIA /</tspan>
+            <tspan x="180" dy="18">REFERENCES</tspan>
+          </text>
+
+          <path class="arrow red" d="M 180 468 L 180 532"></path>
+          <rect class="box red" x="50" y="532" width="260" height="96"></rect>
+          <text class="label" x="180" y="566" text-anchor="middle">
+            <tspan x="180" dy="0">No se localiza seccion</tspan>
+            <tspan class="label muted" x="180" dy="18">No se puede delimitar con certeza</tspan>
+            <tspan class="label muted" x="180" dy="18">⚠ No se pudo delimitar la referencia</tspan>
+          </text>
+
+          <path class="arrow" d="M 290 374 L 380 374"></path>
+
+          <rect class="box" x="380" y="320" width="280" height="108"></rect>
+          <text class="label" x="520" y="352" text-anchor="middle">
+            <tspan x="520" dy="0">Tomar bloque final</tspan>
+            <tspan class="label muted" x="520" dy="18">seccion de referencias limpia</tspan>
+            <tspan class="label muted" x="520" dy="18">sin encabezados ni pies incrustados</tspan>
+          </text>
+
+          <path class="arrow" d="M 660 374 L 760 374"></path>
+
+          <rect class="diamond" x="706" y="280" width="188" height="188" transform="rotate(45 800 374)"></rect>
+          <text class="label" x="800" y="343" text-anchor="middle">
+            <tspan x="800" dy="0">Detectar inicio</tspan>
+            <tspan x="800" dy="18">de nueva referencia</tspan>
+            <tspan x="800" dy="18">APA / IEEE / mixto</tspan>
+          </text>
+
+          <path class="arrow" d="M 800 468 L 800 526"></path>
+          <rect class="box green" x="650" y="526" width="300" height="86"></rect>
+          <text class="label" x="800" y="558" text-anchor="middle">
+            <tspan x="800" dy="0">Separar referencias individuales</tspan>
+            <tspan class="label muted" x="800" dy="18">reglas APA + IEEE en paralelo</tspan>
+          </text>
+
+          <path class="arrow" d="M 840 374 L 980 374"></path>
+          <rect class="box amber" x="980" y="318" width="280" height="112"></rect>
+          <text class="label" x="1120" y="350" text-anchor="middle">
+            <tspan x="1120" dy="0">Patrones de corte</tspan>
+            <tspan class="label muted" x="1120" dy="18">(año). Apellido, I.</tspan>
+            <tspan class="label muted" x="1120" dy="18">Apellido, I. (año).</tspan>
+            <tspan class="label muted" x="1120" dy="18">Apellido, I., ... (año)</tspan>
+          </text>
+
+          <path class="arrow" d="M 1260 374 L 1370 374"></path>
+          <rect class="box" x="1370" y="318" width="250" height="112"></rect>
+          <text class="label" x="1495" y="352" text-anchor="middle">
+            <tspan x="1495" dy="0">Coautoria con &amp;</tspan>
+            <tspan class="label muted" x="1495" dy="18">se conserva en una sola referencia</tspan>
+            <tspan class="label muted" x="1495" dy="18">no se separa por el ampersand</tspan>
+          </text>
+
+          <path class="arrow green" d="M 1495 430 L 1495 512"></path>
+          <rect class="box green" x="1360" y="512" width="280" height="92"></rect>
+          <text class="label" x="1500" y="544" text-anchor="middle">
+            <tspan x="1500" dy="0">Referencia aislada</tspan>
+            <tspan class="label muted" x="1500" dy="18">lista para clasificacion por formato</tspan>
+          </text>
+
+          <path class="arrow red" d="M 800 612 L 800 688"></path>
+          <text class="label muted" x="800" y="720" text-anchor="middle">
+            Si el bloque mezcla APA e IEEE, se separa cada referencia y se marca la mezcla sin unir todo el bloque.
+          </text>
+        </svg>
+      </div>
+      <div class="svg-hint">El diagrama puede desplazarse horizontalmente en pantallas pequenas.</div>
+    </section>
+
+    <section>
+      <div class="section-title">
+        <h2>2. Clasificacion y conteos</h2>
+        <span>APA 7 estricta + agregaciones</span>
+      </div>
+      <p class="note">
+        Primero se decide el formato base. Solo si la referencia empieza como APA 7 entra a validacion por tipo.
+        Los conteos globales usan solo referencias APA 7 correctas.
+      </p>
+      <div class="flow-labels">
+        <div class="flow-label"><strong>1. Formato base</strong>APA 7, IEEE, Vancouver, MLA, Chicago u otro estilo.</div>
+        <div class="flow-label"><strong>2. Tipo APA</strong>Articulo, libro, capitulo, ponencia, reporte o sitio web.</div>
+        <div class="flow-label"><strong>3. Veredicto</strong>Correcta, con errores, invalida, otro formato o revision manual.</div>
+        <div class="flow-label"><strong>4. Conteo</strong>Solo entran años, titulos, autores y fuentes de APA 7 correctas.</div>
+      </div>
+      <div class="svg-wrap" role="img" aria-label="Diagrama de clasificacion y conteos">
+        <svg viewBox="0 0 1680 880" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arrowhead2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"></path>
+            </marker>
+          </defs>
+
+          <style>
+            .arrow2 { stroke: #475569; stroke-width: 2.2; fill: none; marker-end: url(#arrowhead2); }
+            .arrow2.red { stroke: #dc2626; }
+            .arrow2.green { stroke: #16a34a; }
+            .arrow2.amber { stroke: #d97706; }
+          </style>
+
+          <rect class="box soft" x="70" y="40" width="270" height="84"></rect>
+          <text class="label" x="205" y="72" text-anchor="middle">
+            <tspan x="205" dy="0">Referencia individual</tspan>
+            <tspan class="label muted" x="205" dy="18">ya separada y limpia</tspan>
+          </text>
+
+          <path class="arrow2" d="M 205 124 L 205 166"></path>
+
+          <rect class="diamond" x="111" y="166" width="188" height="188" transform="rotate(45 205 260)"></rect>
+          <text class="label" x="205" y="236" text-anchor="middle">
+            <tspan x="205" dy="0">Formato base</tspan>
+            <tspan x="205" dy="18">APA 7?</tspan>
+          </text>
+
+          <path class="arrow2 red" d="M 205 354 L 205 428"></path>
+          <rect class="box red" x="70" y="428" width="270" height="100"></rect>
+          <text class="label" x="205" y="460" text-anchor="middle">
+            <tspan x="205" dy="0">No APA 7</tspan>
+            <tspan class="label muted" x="205" dy="18">IEEE / Vancouver / MLA / Chicago</tspan>
+            <tspan class="label muted" x="205" dy="18">veredicto: Otro formato</tspan>
+          </text>
+
+          <path class="arrow2" d="M 298 260 L 412 260"></path>
+          <rect class="box amber" x="412" y="206" width="310" height="108"></rect>
+          <text class="label" x="567" y="238" text-anchor="middle">
+            <tspan x="567" dy="0">Si empieza como APA 7</tspan>
+            <tspan class="label muted" x="567" dy="18">Apellido, I. (año).</tspan>
+            <tspan class="label muted" x="567" dy="18">Institucion. (año).</tspan>
+          </text>
+
+          <path class="arrow2" d="M 722 260 L 820 260"></path>
+          <rect class="diamond" x="726" y="166" width="188" height="188" transform="rotate(45 820 260)"></rect>
+          <text class="label" x="820" y="229" text-anchor="middle">
+            <tspan x="820" dy="0">Tipo de fuente</tspan>
+            <tspan x="820" dy="18">Articulo / Libro /</tspan>
+            <tspan x="820" dy="18">Capitulo / Ponencia</tspan>
+            <tspan x="820" dy="18">Reporte / Sitio web</tspan>
+          </text>
+
+          <path class="arrow2" d="M 820 354 L 820 430"></path>
+          <rect class="box" x="680" y="430" width="280" height="92"></rect>
+          <text class="label" x="820" y="462" text-anchor="middle">
+            <tspan x="820" dy="0">Validar campos obligatorios</tspan>
+            <tspan class="label muted" x="820" dy="18">segun el tipo detectado</tspan>
+          </text>
+
+          <path class="arrow2" d="M 960 476 L 1080 476"></path>
+          <rect class="diamond" x="1036" y="382" width="188" height="188" transform="rotate(45 1130 476)"></rect>
+          <text class="label" x="1130" y="444" text-anchor="middle">
+            <tspan x="1130" dy="0">Campos correctos</tspan>
+            <tspan x="1130" dy="18">y sin errores</tspan>
+            <tspan x="1130" dy="18">bloqueantes?</tspan>
+          </text>
+
+          <path class="arrow2 green" d="M 1130 570 L 1130 648"></path>
+          <rect class="box green" x="980" y="648" width="300" height="96"></rect>
+          <text class="label" x="1130" y="680" text-anchor="middle">
+            <tspan x="1130" dy="0">✅ Cumple APA 7</tspan>
+            <tspan class="label muted" x="1130" dy="18">entra a conteos globales</tspan>
+          </text>
+
+          <path class="arrow2 red" d="M 1130 382 L 1130 318"></path>
+          <text class="label muted" x="1130" y="300" text-anchor="middle">
+            Si falla una regla obligatoria, no puede ser ✅
+          </text>
+
+          <path class="arrow2" d="M 1224 476 L 1334 476"></path>
+          <rect class="box amber" x="1334" y="422" width="270" height="100"></rect>
+          <text class="label" x="1469" y="454" text-anchor="middle">
+            <tspan x="1469" dy="0">⚠ APA 7 con errores</tspan>
+            <tspan class="label muted" x="1469" dy="18">hay estructura APA, pero faltan o fallan campos</tspan>
+            <tspan class="label muted" x="1469" dy="18">no se cuenta para el total estricto</tspan>
+          </text>
+
+          <path class="arrow2 red" d="M 1469 522 L 1469 612"></path>
+          <rect class="box red" x="1334" y="612" width="270" height="100"></rect>
+          <text class="label" x="1469" y="644" text-anchor="middle">
+            <tspan x="1469" dy="0">❌ No cumple APA 7</tspan>
+            <tspan class="label muted" x="1469" dy="18">estructura insuficiente o invalida</tspan>
+            <tspan class="label muted" x="1469" dy="18">o tipo ambiguo para validar</tspan>
+          </text>
+
+          <path class="arrow2" d="M 820 522 L 820 620"></path>
+          <rect class="box soft" x="680" y="620" width="280" height="92"></rect>
+          <text class="label" x="820" y="652" text-anchor="middle">
+            <tspan x="820" dy="0">Extraer campos de conteo</tspan>
+            <tspan class="label muted" x="820" dy="18">anio, titulo, primer autor, fuente</tspan>
+          </text>
+
+          <path class="arrow2 green" d="M 820 712 L 820 786"></path>
+          <rect class="box green" x="520" y="786" width="600" height="54"></rect>
+          <text class="label" x="820" y="819" text-anchor="middle">
+            <tspan x="820" dy="0">Contar solo referencias APA 7 correctas para años, titulos, autores y editorial/revista</tspan>
+          </text>
+        </svg>
+      </div>
+      <div class="svg-hint">Las flechas verdes terminan en datos que si se agregan a los conteos estrictos.</div>
+    </section>
+
+    <section>
+      <div class="section-title">
+        <h2>3. Revision del proceso contra el codigo</h2>
+        <span>lectura tecnica</span>
+      </div>
+      <ul class="review-list">
+        <li><strong>Correcto:</strong> el flujo empieza con extraccion de seccion, limpieza, normalizacion y separacion antes de analizar cada referencia.</li>
+        <li><strong>Correcto:</strong> APA e IEEE se detectan por inicios distintos y despues se ordenan los indices para cortar referencias individuales.</li>
+        <li><strong>Correcto:</strong> los formatos IEEE, Vancouver, MLA y Chicago no pasan por validacion APA campo por campo; se clasifican como otro formato.</li>
+        <li><strong>Ajuste importante:</strong> los conteos de anio, titulo, primer autor y editorial/revista se calculan despues de filtrar referencias con <code>IsApa7Compliant</code>.</li>
+        <li><strong>Ajuste importante:</strong> la editorial/revista no se cuenta desde texto bruto; se extrae desde <code>ReferenceAnalysis</code> porque depende del tipo detectado.</li>
+      </ul>
+    </section>
+
+    <section>
+      <div class="section-title">
+        <h2>4. Proceso detallado con snapshots de codigo real</h2>
+        <span>Apa7ReferenceService.cs + Program.cs</span>
+      </div>
+      <div class="snapshot-grid">
+        <div class="panel snapshot wide">
+          <span class="file-ref">Apa7ReferenceService.cs - patrones base</span>
+          <pre class="code">private const string DatePattern =
+    @"\(\s*(?:n\.?\s*d\.?|s\.?\s*f\.?|(?:\d{1,2}\s+de\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+\s+de\s+)?(?:19|20)\d{2}[a-z]?)(?:,\s*[^)]{1,40})?\s*\)";
+
+private const string PersonAuthorPattern =
+    SurnamePattern + @",\s*(?:" + InitialsPattern + @"){1,4}(?:,\s*&amp;\s*|,\s*|;\s*&amp;?\s*|&amp;\s*|,\s*y\s*|\s+y\s+)?";
+
+private const string GroupAuthorPattern =
+    @"[A-Za-zÁÉÍÓÚÜÑÇĞİÖŞáéíóúüñçğıöş0-9&amp;'\-]{2,}(?:\s+(?:de|del|la|las|los|el|en|y|e|of|the|and|for|[A-Za-zÁÉÍÓÚÜÑÇĞİÖŞáéíóúüñçğıöş0-9&amp;'\-]{2,})){0,14}\.\s*(?:\([^)]{2,40}\)\.\s*)?";
+
+private const string IeeeReferenceStartPattern =
+    SurnamePattern + @",\s*(?:" + InitialsPattern + @"){1,4}(?:,\s+|:\s+)";</pre>
+        </div>
+
+        <div class="panel snapshot">
+          <span class="file-ref">Apa7ReferenceService.cs - entrada del flujo</span>
+          <pre class="code">public static List&lt;string&gt; FindReferences(string text)
+{
+    var section = ExtractReferenceSection(text);
+
+    if (section.Length == 0)
+    {
+        return [];
+    }
+
+    var references = SplitReferences(section);
+    return references.Count &gt; 0 ? references : [section];
+}</pre>
+        </div>
+
+        <div class="panel snapshot wide">
+          <span class="file-ref">Apa7ReferenceService.cs - separacion individual</span>
+          <pre class="code">private static List&lt;string&gt; SplitReferences(string section)
+{
+    var text = RemoveIeeeInterReferencePageNumbers(
+        TextUtilities.NormalizeWhitespace(RemoveReferenceSectionTitle(section)));
+
+    var starts = FindAllReferenceStartIndexes(text).ToList();
+
+    var references = new List&lt;string&gt;();
+
+    for (var index = 0; index &lt; starts.Count; index++)
+    {
+        var start = starts[index];
+        var end = index + 1 &lt; starts.Count ? starts[index + 1] : text.Length;
+        var reference = CleanReference(text[start..end]);
+
+        if (reference.Length &gt; 0)
+        {
+            references.Add(reference);
+        }
+    }
+
+    return references;
+}</pre>
+        </div>
+
+        <div class="panel snapshot">
+          <span class="file-ref">Apa7ReferenceService.cs - APA + IEEE en el mismo corte</span>
+          <pre class="code">private static List&lt;int&gt; FindAllReferenceStartIndexes(string text)
+{
+    var apaStarts = FindReferenceStartMatches(text)
+        .Select(match =&gt; match.Index);
+    var ieeeStarts = FindIeeeReferenceStartMatches(text)
+        .Select(match =&gt; match.Index);
+
+    return apaStarts
+        .Concat(ieeeStarts)
+        .Distinct()
+        .Order()
+        .ToList();
+}</pre>
+        </div>
+
+        <div class="panel snapshot">
+          <span class="file-ref">Apa7ReferenceService.cs - clasificacion de formato</span>
+          <pre class="code">private static string DetectCitationStyle(string reference)
+{
+    if (IsIeeeReference(reference)) return "Formato IEEE";
+    if (IsVancouverReference(reference)) return "Formato Vancouver";
+    if (IsMlaReference(reference)) return "Formato MLA";
+    if (IsChicagoReference(reference)) return "Formato Chicago";
+    if (LooksLikeApa7(reference)) return "APA 7";
+
+    return "Otro estilo";
+}</pre>
+        </div>
+
+        <div class="panel snapshot">
+          <span class="file-ref">Apa7ReferenceService.cs - no analizar IEEE como APA</span>
+          <pre class="code">if (citationStyle != "APA 7")
+{
+    if (IsRecognizedNonApaFormat(citationStyle))
+    {
+        reasons.Add($"Otro formato: {citationStyle} — no aplica análisis APA 7.");
+
+        return new ReferenceAnalysis(
+            number, normalized, referenceType, citationStyle,
+            "OtherFormat", false, reasons);
+    }
+}</pre>
+        </div>
+
+        <div class="panel snapshot">
+          <span class="file-ref">Apa7ReferenceService.cs - veredicto estricto</span>
+          <pre class="code">var blockingReasons = reasons
+    .Where(reason =&gt;
+        reason.StartsWith("No cumple:") ||
+        reason.StartsWith(BoundaryWarning))
+    .ToList();
+
+var status = blockingReasons.Count == 0 &amp;&amp; !isNonStandardApaType
+    ? "Apa7Correct"
+    : invalidReasons.Count &gt; 0 || isNonStandardApaType
+        ? "Apa7Invalid"
+        : "Apa7WithErrors";</pre>
+        </div>
+
+        <div class="panel snapshot">
+          <span class="file-ref">Program.cs - filtro antes de conteos</span>
+          <pre class="code">var apa7Analysis = Apa7ReferenceService.AnalyzeReferences(references);
+var compliantReferenceAnalyses = apa7Analysis.References
+    .Where(reference =&gt; reference.IsApa7Compliant)
+    .ToList();
+var compliantReferences = compliantReferenceAnalyses
+    .Select(reference =&gt; reference.Reference)
+    .ToList();
+
+Apa7ReferenceService.CountYears(compliantReferences);
+Apa7ReferenceService.CountTitles(compliantReferences);
+Apa7ReferenceService.CountFirstAuthors(compliantReferences);
+Apa7ReferenceService.CountPublishers(compliantReferenceAnalyses);</pre>
+        </div>
+
+        <div class="panel snapshot wide">
+          <span class="file-ref">Apa7ReferenceService.cs - conteo por anio</span>
+          <pre class="code">public static SortedDictionary&lt;int, int&gt; CountYears(IEnumerable&lt;string&gt; references)
+{
+    var counts = new SortedDictionary&lt;int, int&gt;();
+
+    foreach (var reference in references)
+    {
+        var match = Regex.Match(
+            reference,
+            @"\(\s*(?:\d{1,2}\s+de\s+[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+\s+de\s+)?(?&lt;year&gt;(?:19|20)\d{2})[a-z]?\s*\)",
+            RegexOptions.CultureInvariant);
+
+        if (!match.Success || !int.TryParse(match.Groups["year"].Value, out var year))
+        {
+            continue;
+        }
+
+        counts[year] = counts.TryGetValue(year, out var currentCount)
+            ? currentCount + 1
+            : 1;
+    }
+
+    return counts;
+}</pre>
+        </div>
+
+        <div class="panel snapshot">
+          <span class="file-ref">Apa7ReferenceService.cs - fuente sin romper dominios .com</span>
+          <pre class="code">private static IEnumerable&lt;string&gt; SplitSentencePartsPreservingDomains(string text)
+{
+    var protectedText = Regex.Replace(
+        text,
+        @"\b[A-Za-z0-9-]+\.(?:com|org|net|edu|gov|mx|es|ar|cl|co|br)\b",
+        match =&gt; match.Value.Replace('.', '\u001F'));
+
+    return Regex.Split(protectedText, @"\.\s+")
+        .Select(part =&gt; part.Replace('\u001F', '.'));
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-title">
+        <h2>5. Regex clave</h2>
+        <span>patrones tecnicos</span>
+      </div>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Separacion de referencias</h3>
+          <pre class="code">Inicio APA:
+Apellido, I. (año).
+Institucion. (año).
+
+Inicio IEEE:
+Apellido, I., ... (año).
+Apellido, I.: ... (año).
+
+Corte mixto:
+detecta inicio APA + inicio IEEE
+separar cada referencia por su propio inicio</pre>
+        </div>
+        <div class="panel">
+          <h3>Conteos estrictos</h3>
+          <pre class="code">contarAnios(referenciasCorrectas)
+contarTitulos(referenciasCorrectas)
+contarPrimerosAutores(referenciasCorrectas)
+contarEditorialORevista(referenciasCorrectas)
+
+referenciasCorrectas = solo IsApa7Compliant == verdadero</pre>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

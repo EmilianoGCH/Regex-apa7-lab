@@ -7,6 +7,7 @@ public sealed record PdfConversionResult(
     IReadOnlyList<ParentheticalCitation> ParentheticalCitations,
     IReadOnlyList<ParentheticalCitation> NarrativeCitations,
     IReadOnlyDictionary<int, int> YearCounts,
+    IReadOnlyDictionary<string, int> TitleCounts,
     IReadOnlyDictionary<string, int> AuthorCounts,
     IReadOnlyDictionary<string, int> PublisherCounts,
     Apa7DocumentAnalysis Apa7Analysis,

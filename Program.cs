@@ -89,6 +89,7 @@ static async Task<PdfConversionResult> ConvertPdfAsync(
                 new SortedDictionary<int, int>(),
                 new SortedDictionary<string, int>(),
                 new SortedDictionary<string, int>(),
+                new SortedDictionary<string, int>(),
                 new Apa7DocumentAnalysis(0, 0, 0, 0, 0, 0, []),
                 noSelectableTextMessage);
         }
@@ -117,6 +118,7 @@ static async Task<PdfConversionResult> ConvertPdfAsync(
             parentheticalCitations,
             narrativeCitations,
             Apa7ReferenceService.CountYears(compliantReferences),
+            Apa7ReferenceService.CountTitles(compliantReferences),
             Apa7ReferenceService.CountFirstAuthors(compliantReferences),
             Apa7ReferenceService.CountPublishers(compliantReferenceAnalyses),
             apa7Analysis,
@@ -133,6 +135,7 @@ static async Task<PdfConversionResult> ConvertPdfAsync(
             [],
             [],
             new SortedDictionary<int, int>(),
+            new SortedDictionary<string, int>(),
             new SortedDictionary<string, int>(),
             new SortedDictionary<string, int>(),
             new Apa7DocumentAnalysis(0, 0, 0, 0, 0, 0, []),

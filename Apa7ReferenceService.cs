@@ -7,10 +7,10 @@ public static class Apa7ReferenceService
     private const string BoundaryWarning = "Advertencia: No se pudo delimitar la referencia, verificar manualmente.";
     private const string RemovedPageHeaderWarningPrefix = "Advertencia: Se detectó y eliminó encabezado/pie de página incrustado:";
     private const string MixedFormatsWarning = "Advertencia: Bloque con formatos mixtos detectado — se separaron y clasificaron individualmente.";
-    private const string InitialsPattern = @"(?:[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]{0,2}\.?\s*(?:de\s+|del\s+|de la\s+)?)";
-    private const string SurnamePattern = @"[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\-]+(?:\s+[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\-]+){0,2}";
+    private const string InitialsPattern = @"(?:[A-ZÁÉÍÓÚÜÑÇĞİÖŞ][a-záéíóúüñçğıöş]{0,2}\.?\s*(?:de\s+|del\s+|de la\s+)?)";
+    private const string SurnamePattern = @"[A-ZÁÉÍÓÚÑÇĞİÖŞ][A-Za-zÁÉÍÓÚÜÑÇĞİÖŞáéíóúüñçğıöş'\-]+(?:\s+[A-ZÁÉÍÓÚÑÇĞİÖŞ][A-Za-zÁÉÍÓÚÜÑÇĞİÖŞáéíóúüñçğıöş'\-]+){0,2}";
     private const string PersonAuthorPattern = SurnamePattern + @",\s*(?:" + InitialsPattern + @"){1,4}(?:,\s*&\s*|,\s*|;\s*&?\s*|&\s*|,\s*y\s*|\s+y\s+)?";
-    private const string GroupAuthorPattern = @"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9&'\-]{2,}(?:\s+(?:de|del|la|las|los|el|en|y|e|of|the|and|for|[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9&'\-]{2,})){0,14}\.\s*(?:\([^)]{2,40}\)\.\s*)?";
+    private const string GroupAuthorPattern = @"[A-Za-zÁÉÍÓÚÜÑÇĞİÖŞáéíóúüñçğıöş0-9&'\-]{2,}(?:\s+(?:de|del|la|las|los|el|en|y|e|of|the|and|for|[A-Za-zÁÉÍÓÚÜÑÇĞİÖŞáéíóúüñçğıöş0-9&'\-]{2,})){0,14}\.\s*(?:\([^)]{2,40}\)\.\s*)?";
     private const string IeeeReferenceStartPattern = SurnamePattern + @",\s*(?:" + InitialsPattern + @"){1,4}(?:,\s+|:\s+)";
 
     public static List<string> FindReferences(string text)
@@ -232,6 +232,27 @@ public static class Apa7ReferenceService
             }
 
             counts[firstAuthor] = counts.TryGetValue(firstAuthor, out var currentCount)
+                ? currentCount + 1
+                : 1;
+        }
+
+        return counts;
+    }
+
+    public static SortedDictionary<string, int> CountTitles(IEnumerable<string> references)
+    {
+        var counts = new SortedDictionary<string, int>(StringComparer.CurrentCultureIgnoreCase);
+
+        foreach (var reference in references)
+        {
+            var title = ExtractTitle(reference);
+
+            if (title.Length == 0)
+            {
+                continue;
+            }
+
+            counts[title] = counts.TryGetValue(title, out var currentCount)
                 ? currentCount + 1
                 : 1;
         }
@@ -736,7 +757,7 @@ public static class Apa7ReferenceService
 
         var personMatch = Regex.Match(
             authorText,
-            @"^(?<author>(?:[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\-]+\s+){0,2}[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\-]+,\s*(?:" + InitialsPattern + @"){1,4})",
+            @"^(?<author>(?:[A-ZÁÉÍÓÚÑÇĞİÖŞ][A-Za-zÁÉÍÓÚÜÑÇĞİÖŞáéíóúüñçğıöş'\-]+\s+){0,2}[A-ZÁÉÍÓÚÑÇĞİÖŞ][A-Za-zÁÉÍÓÚÜÑÇĞİÖŞáéíóúüñçğıöş'\-]+,\s*(?:" + InitialsPattern + @"){1,4})",
             RegexOptions.CultureInvariant);
 
         if (personMatch.Success)
@@ -752,6 +773,41 @@ public static class Apa7ReferenceService
         }
 
         return groupAuthor;
+    }
+
+    private static string ExtractTitle(string reference)
+    {
+        var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
+
+        if (!dateMatch.Success)
+        {
+            return string.Empty;
+        }
+
+        var afterDate = reference[(dateMatch.Index + dateMatch.Length)..].Trim();
+        var parts = SplitSentencePartsPreservingDomains(afterDate).ToList();
+
+        if (parts.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        return CleanTitleCandidate(parts[0]);
+    }
+
+    private static string CleanTitleCandidate(string title)
+    {
+        var cleaned = TextUtilities.NormalizeWhitespace(title)
+            .Trim()
+            .Trim(',', ';', ':', '.', '-', '–', '—', '*', '•', '·', ')', '(', '[', ']');
+
+        cleaned = Regex.Replace(
+            cleaned,
+            @"^\s*(?:[""“”']|\*)+|(?:[""“”']|\*)+\s*$",
+            string.Empty,
+            RegexOptions.CultureInvariant);
+
+        return cleaned.Trim();
     }
 
     private static string ExtractFirstAuthorSearchTerm(string reference)
@@ -827,8 +883,23 @@ public static class Apa7ReferenceService
             @"\.\s*(?<journal>[^.]{2,160}),\s*\d+",
             RegexOptions.CultureInvariant);
 
-        return match.Success
-            ? CleanSourceCandidate(match.Groups["journal"].Value)
+        if (match.Success)
+        {
+            return CleanSourceCandidate(match.Groups["journal"].Value);
+        }
+
+        var beforeUrl = Regex.Replace(
+            afterDate,
+            @"https?://\S+",
+            string.Empty,
+            RegexOptions.CultureInvariant);
+        var embeddedJournalMatch = Regex.Match(
+            beforeUrl,
+            @"[-–—]\s*(?<journal>revista\s+.+?)\.?\s*$",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        return embeddedJournalMatch.Success
+            ? CleanSourceCandidate(embeddedJournalMatch.Groups["journal"].Value)
             : string.Empty;
     }
 
@@ -846,8 +917,7 @@ public static class Apa7ReferenceService
             @"https?://\S+",
             string.Empty,
             RegexOptions.CultureInvariant);
-        var parts = beforeUrl
-            .Split('.', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+        var parts = SplitSentencePartsPreservingDomains(beforeUrl)
             .Where(part => !part.StartsWith("http", StringComparison.OrdinalIgnoreCase))
             .Where(part => !part.StartsWith("Recuperado", StringComparison.OrdinalIgnoreCase))
             .Where(part => !Regex.IsMatch(part, @"^\(?pp\.", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
@@ -876,9 +946,7 @@ public static class Apa7ReferenceService
         }
 
         var afterDate = beforeUrl[(dateMatch.Index + dateMatch.Length)..].Trim();
-        var parts = afterDate
-            .Split('.', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .ToList();
+        var parts = SplitSentencePartsPreservingDomains(afterDate).ToList();
 
         return parts.Count >= 2
             ? CleanSourceCandidate(parts[^1])
@@ -913,6 +981,20 @@ public static class Apa7ReferenceService
             .Trim(',', ';', ':', '.', '-', '–', '—', '&', '*', '•', '·', ')', '(', '[', ']');
     }
 
+    private static IEnumerable<string> SplitSentencePartsPreservingDomains(string text)
+    {
+        var protectedText = Regex.Replace(
+            text,
+            @"\b[A-Za-z0-9-]+\.(?:com|org|net|edu|gov|mx|es|ar|cl|co|br)\b",
+            match => match.Value.Replace('.', '\u001F'),
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        return Regex.Split(protectedText, @"\.\s+")
+            .Select(part => part.Replace('\u001F', '.'))
+            .Select(part => TextUtilities.NormalizeWhitespace(part).Trim())
+            .Where(part => part.Length > 0);
+    }
+
     private static bool IsValidSourceName(string source)
     {
         if (source.Length < 3)
@@ -926,6 +1008,11 @@ public static class Apa7ReferenceService
         }
 
         if (Regex.IsMatch(source, @"^(?:\d+|\d+\)|[ivxlcdm]+\.?)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            return false;
+        }
+
+        if (Regex.IsMatch(source, @"^(?:com|org|net|edu|gov|mx|es|ar|cl|co|br)$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
         {
             return false;
         }
@@ -1286,6 +1373,11 @@ public static class Apa7ReferenceService
             return "Reporte institucional";
         }
 
+        if (Regex.IsMatch(reference, @"https?://\S+", RegexOptions.CultureInvariant))
+        {
+            return LooksLikeAcademicSource(reference) ? "Articulo de revista" : "Sitio web";
+        }
+
         if (HasBookPublisher(reference) && !LooksLikeAcademicSource(reference))
         {
             return "Libro";
@@ -1302,11 +1394,6 @@ public static class Apa7ReferenceService
         if (HasBookPublisher(reference))
         {
             return "Libro";
-        }
-
-        if (Regex.IsMatch(reference, @"https?://\S+", RegexOptions.CultureInvariant))
-        {
-            return LooksLikeAcademicSource(reference) ? "Articulo de revista" : "Sitio web";
         }
 
         if (Regex.IsMatch(reference, @"\((?:[^)]*Entrevistador[^)]*)\)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
@@ -1494,6 +1581,12 @@ public static class Apa7ReferenceService
 
     private static bool HasBookPublisher(string reference)
     {
+        if (Regex.IsMatch(reference, @"https?://\S+", RegexOptions.CultureInvariant) &&
+            !HasExplicitBookClue(reference))
+        {
+            return false;
+        }
+
         var dateMatch = Regex.Match(reference, DatePattern, RegexOptions.CultureInvariant);
 
         if (!dateMatch.Success)
@@ -1509,6 +1602,14 @@ public static class Apa7ReferenceService
             .ToList();
 
         return parts.Count >= 2 && parts[^1].Length >= 2;
+    }
+
+    private static bool HasExplicitBookClue(string reference)
+    {
+        return Regex.IsMatch(
+            reference,
+            @"\b(?:editorial|press|publisher|ediciones|ed\.|edition|libro)\b|\(\s*\d+\.?[ªa]?\s*ed\.?\s*\)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     }
 
     private static bool IsLikelyUnexpandedInstitution(string authorText)

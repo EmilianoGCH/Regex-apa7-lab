@@ -473,6 +473,68 @@
       background: #EFF6FF;
     }
 
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+    }
+
+    .count-chart {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #F8FAFC;
+    }
+
+    .count-chart h4 {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .bar-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: minmax(92px, 1.4fr) minmax(90px, 2fr) auto;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .bar-label {
+      overflow: hidden;
+      color: var(--text);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .bar-track {
+      height: 10px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #E5E7EB;
+    }
+
+    .bar-fill {
+      height: 100%;
+      min-width: 4px;
+      border-radius: inherit;
+      background: var(--blue);
+    }
+
+    .bar-value {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
     .reference-card {
       overflow: hidden;
       border: 1px solid var(--border);
@@ -771,7 +833,9 @@
       latestReportFiles = files;
       exportReportButton.disabled = false;
       files.forEach((file) => resultsList.append(createFileCard(file)));
+      resultsList.append(createAggregateChartsSection(files));
       resultsList.append(createCountSection("Años citados en APA 7 correctas", "Año", files, "yearCounts", "año(s)"));
+      resultsList.append(createCountSection("Títulos de trabajos en APA 7 correctas", "Título del trabajo", files, "titleCounts", "título(s)"));
       resultsList.append(createCountSection("Primeros autores en APA 7 correctas", "Primer autor", files, "authorCounts", "autor(es)"));
       resultsList.append(createCountSection("Editorial o revista en APA 7 correctas", "Editorial / revista", files, "publisherCounts", "fuente(s)"));
     }
@@ -961,6 +1025,119 @@
       button.dataset.filter = value;
       button.textContent = `${label} (${count})`;
       return button;
+    }
+
+    function createAggregateChartsSection(files) {
+      const section = document.createElement("section");
+      section.className = "count-section";
+
+      const header = document.createElement("div");
+      header.className = "count-header";
+
+      const heading = document.createElement("h3");
+      heading.textContent = "Gráficas totales de APA 7 correctas";
+
+      const count = document.createElement("span");
+      count.textContent = "sin separar por documento";
+
+      header.append(heading, count);
+      section.append(header);
+
+      const grid = document.createElement("div");
+      grid.className = "chart-grid";
+      grid.append(
+        createAggregateChart("Citas parentéticas", aggregateCitationCounts(files, "parentheticalCitations"), "Autor citado"),
+        createAggregateChart("Citas narrativas", aggregateCitationCounts(files, "narrativeCitations"), "Autor citado"),
+        createAggregateChart("Años", aggregateCountMap(files, "yearCounts"), "Año"),
+        createAggregateChart("Títulos de trabajos", aggregateCountMap(files, "titleCounts"), "Título"),
+        createAggregateChart("Primeros autores", aggregateCountMap(files, "authorCounts"), "Autor"),
+        createAggregateChart("Editorial / revista", aggregateCountMap(files, "publisherCounts"), "Fuente")
+      );
+
+      section.append(grid);
+      return section;
+    }
+
+    function aggregateCitationCounts(files, citationKey) {
+      const totals = new Map();
+
+      files.forEach((file) => {
+        (file[citationKey] || []).forEach((citation) => {
+          const key = citation.citation || "No identificado";
+          totals.set(key, (totals.get(key) || 0) + Number(citation.count || 0));
+        });
+      });
+
+      return Array.from(totals.entries())
+        .map(([key, value]) => ({ key, value }))
+        .sort((a, b) => b.value - a.value || a.key.localeCompare(b.key, "es"));
+    }
+
+    function aggregateCountMap(files, countKey) {
+      const totals = new Map();
+
+      files.forEach((file) => {
+        Object.entries(file[countKey] || {}).forEach(([key, value]) => {
+          const normalizedKey = countKey === "yearCounts" ? String(Number(key)) : key;
+          totals.set(normalizedKey, (totals.get(normalizedKey) || 0) + Number(value || 0));
+        });
+      });
+
+      return Array.from(totals.entries())
+        .map(([key, value]) => ({ key, value }))
+        .sort((a, b) => {
+          if (countKey === "yearCounts") return Number(a.key) - Number(b.key);
+          return b.value - a.value || a.key.localeCompare(b.key, "es");
+        });
+    }
+
+    function createAggregateChart(title, rows, labelPrefix) {
+      const chart = document.createElement("div");
+      chart.className = "count-chart";
+
+      const heading = document.createElement("h4");
+      heading.textContent = `${title} (${rows.length})`;
+      chart.append(heading);
+
+      if (rows.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "empty";
+        empty.textContent = `No hay datos para ${title.toLowerCase()}.`;
+        chart.append(empty);
+        return chart;
+      }
+
+      const maxValue = Math.max(...rows.map((row) => row.value), 1);
+      const list = document.createElement("div");
+      list.className = "bar-list";
+
+      rows.forEach((row) => {
+        const item = document.createElement("div");
+        item.className = "bar-row";
+
+        const label = document.createElement("span");
+        label.className = "bar-label";
+        label.title = `${labelPrefix}: ${row.key}`;
+        label.textContent = row.key;
+
+        const track = document.createElement("div");
+        track.className = "bar-track";
+
+        const fill = document.createElement("div");
+        fill.className = "bar-fill";
+        fill.style.width = `${Math.max(4, (row.value / maxValue) * 100)}%`;
+        track.append(fill);
+
+        const value = document.createElement("span");
+        value.className = "bar-value";
+        value.textContent = String(row.value);
+
+        item.append(label, track, value);
+        list.append(item);
+      });
+
+      chart.append(list);
+      return chart;
     }
 
     function createCountSection(title, firstColumnLabel, files, countKey, unitLabel) {
@@ -1254,6 +1431,7 @@
     </header>
     ${renderReportFiles(files)}
     ${renderReportCountSection("Años citados en APA 7 correctas", "Año", files, "yearCounts")}
+    ${renderReportCountSection("Títulos de trabajos en APA 7 correctas", "Título del trabajo", files, "titleCounts")}
     ${renderReportCountSection("Primeros autores en APA 7 correctas", "Primer autor", files, "authorCounts")}
     ${renderReportCountSection("Editorial o revista en APA 7 correctas", "Editorial / revista", files, "publisherCounts")}
   </main>
